@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Clients{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Clients</h1><p class="sub">Districts, county offices, charters and SELPAs ({{ parties|length }})</p></div>
+  <form class="row" method="get"><input name="q" value="{{ q }}" placeholder="Search name or alias"><button class="btn">Search</button></form>
+</div>
+<div class="card">
+  <form class="row" method="post" action="/clients/new">
+    <input name="name" placeholder="New client name" style="min-width:18rem" required>
+    <select name="kind">{{ m.options(CLIENT_KINDS, "District") }}</select>
+    <input name="region" placeholder="Region (optional)">
+    <button class="btn primary">Add client</button>
+  </form>
+</div>
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>Name</th><th>Type</th><th>SELPA</th><th>Size tier</th><th>{{ school_year }} contract</th><th class="num">Value</th></tr></thead>
+  <tbody>
+  {% for p in parties %}{% set cs = contracts.get((p.party_type, p.id), []) %}
+    <tr>
+      <td><a href="{{ party_url(p.party_type, p.id) }}">{{ p.name }}</a>
+        {% if p.aliases %}<br><small title="{{ p.aliases }}">also: {{ p.aliases.splitlines()[:3]|join('; ') }}{% if p.aliases.splitlines()|length > 3 %}…{% endif %}</small>{% endif %}</td>
+      <td>{{ 'SELPA' if p.party_type == PARTY_SELPA else p.client_kind }}</td>
+      <td>{% if p.party_type == PARTY_DISTRICT and p.selpa %}<a href="{{ party_url(PARTY_SELPA, p.selpa.id) }}">{{ p.selpa.selpa_name }}</a>{% elif p.party_type == PARTY_SELPA %}<small>{{ p.member_districts|length }} member(s)</small>{% endif %}</td>
+      <td>{{ p.student_tier or '' }}</td>
+      <td>{% for c in cs %}<a href="/contracts/{{ c.id }}">{{ m.badge(c.status) }}</a> {% endfor %}</td>
+      <td class="num">{% if cs %}{{ cs|sum(attribute='total_contract_value')|money(False) }}{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

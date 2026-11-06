@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Import / Export{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Import / Export</h1><p class="sub">Bring in the spreadsheets you use today; hand data to ERPNext later.</p></div></div>
+<div class="grid g3">
+  <div class="card">
+    <h2 style="margin-top:0">1. Price list</h2>
+    <p>Upload a <b>Quote Pricing Worksheet</b> (.xlsx with the "Price Quote Sheet" and "Zone Rates" tabs). It replaces the price list for the school year you pick.</p>
+    <form method="post" action="/import/prices" enctype="multipart/form-data">
+      <div class="field"><input type="file" name="file" accept=".xlsx" required></div>
+      <div class="field"><label>Load into school year</label><input name="school_year" value="{{ school_year }}" pattern="\d{4}-\d{2}"></div>
+      <button class="btn primary">Import price list</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">2. Client spreadsheet</h2>
+    <p>Upload the <b>Client Spreadsheet - Contracts and Services</b> workbook. Every tracking tab is read. Clients that already have a contract for that year are skipped, so running it twice won't double anything.</p>
+    <form method="post" action="/import/clients" enctype="multipart/form-data">
+      <div class="field"><input type="file" name="file" accept=".xlsx" required></div>
+      <div class="field"><label>School year (blank = from the file name, e.g. "26-27")</label><input name="school_year" placeholder="2026-27" pattern="\d{4}-\d{2}"></div>
+      <button class="btn primary">Import client spreadsheet</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">ERPNext export</h2>
+    <p>Downloads a .zip with one CSV per DocType, named after the Platform Blueprint (LCS Training Contract, LCS Contract Service, …), for ERPNext's Data Import tool or the future <code>lcs_training</code> app.</p>
+    <a class="btn primary" href="/export/erpnext.zip">Download ERPNext export</a>
+  </div>
+</div>
+
+{% if report %}
+<div class="card" id="report">
+  <h2 style="margin-top:0">Last import: {{ report.title }}</h2>
+  <div class="grid g4">{% for k, v in report.counts.items() %}<div class="stat"><div class="label">{{ k }}</div><div class="value">{{ v }}</div></div>{% endfor %}</div>
+  {% if report.matched %}
+  <h3>Names matched to an existing client ({{ report.matched|length }}): please check</h3>
+  <div class="table-wrap"><table><thead><tr><th>Name in the spreadsheet</th><th>Tab</th><th>Matched to</th><th>Why</th></tr></thead>
+    <tbody>{% for n, tab, to, rule in report.matched %}<tr><td>{{ n }}</td><td><small>{{ tab }}</small></td><td>{{ to }}</td><td><small>{{ rule }}</small></td></tr>{% endfor %}</tbody></table></div>
+  <p class="muted">If one is wrong, open that client, add a new client for the name, and move the records with "Merge into another client".</p>
+  {% endif %}
+  {% if report.created %}
+  <details><summary><b>Clients created ({{ report.created|length }})</b></summary>
+    <table><thead><tr><th>Client</th><th>First seen in</th><th>Also in</th></tr></thead>
+    <tbody>{% for n, first, also in report.created %}<tr><td>{{ n }}</td><td><small>{{ first }}</small></td><td><small>{{ also }}</small></td></tr>{% endfor %}</tbody></table></details>
+  {% endif %}
+  {% if report.warnings %}<h3>Warnings ({{ report.warnings|length }})</h3><ul>{% for w in report.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+  {% if report.notes %}<h3>Notes</h3><ul>{% for n in report.notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

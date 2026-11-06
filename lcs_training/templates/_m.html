@@ -1,0 +1,38 @@
+{% macro badge(s) -%}<span class="badge s-{{ (s or '')|replace(' ', '-') }}">{{ s }}</span>{%- endmacro %}
+
+{% macro options(values, selected, blank=None) -%}
+  {% if blank is not none %}<option value="">{{ blank }}</option>{% endif %}
+  {% for v in values %}<option {{ 'selected' if v == selected }}>{{ v }}</option>{% endfor %}
+{%- endmacro %}
+
+{% macro party_options(parties, sel_type=None, sel_id=None, blank="Choose a client…") -%}
+  <option value="">{{ blank }}</option>
+  {% for p in parties %}<option value="{{ p.party_type }}:{{ p.id }}" {{ 'selected' if p.party_type == sel_type and p.id == sel_id }}>{{ p.name }}{% if p.party_type == PARTY_SELPA and 'selpa' not in p.name|lower %} (SELPA){% endif %}</option>{% endfor %}
+{%- endmacro %}
+
+{% macro bar(p) -%}
+  {% if p is not none %}<div class="bar {{ 'over' if p > 1 }}" title="{{ p|pct }}"><span style="width: {{ [p, 1]|min * 100 }}%"></span></div>{% endif %}
+{%- endmacro %}
+
+{# Checklist table: steps have id, step, status, step_date, note (and optional stage) #}
+{% macro steps_table(steps, prefix="step", show_stage=False) -%}
+<div class="table-wrap"><table class="steps">
+  <thead><tr>{% if show_stage %}<th>Stage</th>{% endif %}<th>Step</th><th>Status</th><th>Date</th><th>Note</th></tr></thead>
+  <tbody>
+  {% for s in steps %}
+    <tr>
+      {% if show_stage %}<td class="stage">{{ s.stage or '' }}</td>{% endif %}
+      <td>{{ s.step }}</td>
+      <td><select name="{{ prefix }}_{{ s.id }}_status">{{ options(STEP_STATUSES, s.status) }}</select></td>
+      <td><input type="date" name="{{ prefix }}_{{ s.id }}_date" value="{{ s.step_date.isoformat() if s.step_date else '' }}"></td>
+      <td><input class="note" name="{{ prefix }}_{{ s.id }}_note" value="{{ s.note or '' }}"></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{%- endmacro %}
+
+{% macro progress(steps) -%}
+  {% set n = steps|length %}{% set d = steps|selectattr('status', 'in', ['Done', 'N/A'])|list|length %}
+  <span class="muted">{{ d }} of {{ n }} done</span>
+{%- endmacro %}

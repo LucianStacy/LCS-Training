@@ -1,0 +1,107 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Price List{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Price List {{ school_year }}</h1><p class="sub">Replaces the Quote Calculation Worksheet. Quotes for {{ school_year }} use these rates.</p></div>
+</div>
+{% if not items %}
+<div class="card">
+  <p>There is no price list for {{ school_year }} yet.</p>
+  <div class="row">
+    <a class="btn primary" href="/import">Import a Quote Pricing Worksheet</a>
+    {% if other_years %}<form class="row" method="post" action="/prices/copy"><span>or copy from</span>
+      <select name="from_year">{{ m.options(other_years, other_years[-1]) }}</select><button class="btn">Copy price list</button></form>{% endif %}
+  </div>
+</div>
+{% else %}
+{% set review = items|selectattr('needs_review')|list|length %}
+{% if review %}<div class="notice">{{ review }} line(s) still <b>need review</b>. These prices came from an older worksheet; tick "Reviewed" once each is right for {{ school_year }}.</div>{% endif %}
+<form method="post" action="/prices/save">
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>Service</th><th>Category / pricing</th><th>Rate(s)</th><th>Coach hours / unit</th><th>Links</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for p in items %}{% set k = 'p' ~ p.id ~ '_' %}
+    <tr>
+      <td style="min-width:16rem">
+        <input class="wide" name="{{ k }}item_name" value="{{ p.item_name }}">
+        <input class="wide" name="{{ k }}variant" value="{{ p.variant or '' }}" placeholder="Option (e.g. 10-12 mo)" style="margin-top:.2rem">
+        <input class="wide" name="{{ k }}description" value="{{ p.description or '' }}" placeholder="Description" style="margin-top:.2rem">
+      </td>
+      <td>
+        <select name="{{ k }}income_category">{{ m.options(INCOME_CATEGORIES, p.income_category) }}</select><br>
+        <select name="{{ k }}method" style="margin-top:.2rem;max-width:14rem" title="{{ PRICE_METHODS[p.method] }}">
+          {% for key, label in PRICE_METHODS.items() %}<option value="{{ key }}" {{ 'selected' if key == p.method }}>{{ label }}</option>{% endfor %}</select>
+      </td>
+      <td style="white-space:nowrap">
+        {% if p.method == 'tiered' %}
+          {% for t, f in [('S','rate_small'),('M','rate_medium'),('L','rate_large'),('XL','rate_xl')] %}
+            <div>{{ t }} <input type="number" step="any" class="short" style="width:6rem" name="{{ k }}{{ f }}" value="{{ p[f]|num }}"></div>{% endfor %}
+          <input type="hidden" name="{{ k }}rate" value="{{ p.rate }}">
+        {% elif p.method in ('zone', 'zone_additional') %}
+          <small>From the zone table</small><input type="hidden" name="{{ k }}rate" value="0">
+        {% else %}
+          <input type="number" step="any" name="{{ k }}rate" value="{{ p.rate|num }}">
+          {% if p.method == 'percent_of_group' %}<br><small>0.5 = 50% off</small>{% endif %}
+        {% endif %}
+        {% if p.method != 'tiered' %}{% for f in ['rate_small','rate_medium','rate_large','rate_xl'] %}<input type="hidden" name="{{ k }}{{ f }}" value="{{ p[f] }}">{% endfor %}{% endif %}
+        {% if p.method in ('two_factor',) or p.qty_label %}
+          <div style="margin-top:.2rem"><input class="short" style="width:9rem" name="{{ k }}qty_label" value="{{ p.qty_label or '' }}" placeholder="Qty label">
+          <input class="short" style="width:9rem" name="{{ k }}factor_label" value="{{ p.factor_label or '' }}" placeholder="2nd factor label"></div>
+        {% else %}<input type="hidden" name="{{ k }}qty_label" value=""><input type="hidden" name="{{ k }}factor_label" value="">{% endif %}
+        <div style="margin-top:.2rem"><small>Bulk discount: </small><input class="short" style="width:3.5rem" name="{{ k }}bulk_min_qty" value="{{ p.bulk_min_qty|num }}" placeholder="min"><small>+ get</small>
+          <input class="short" style="width:3.5rem" name="{{ k }}bulk_discount_pct" value="{{ (p.bulk_discount_pct * 100)|num if p.bulk_discount_pct else '' }}" placeholder="%"><small>% off</small></div>
+      </td>
+      <td style="white-space:nowrap">
+        {% if p.method == 'tiered' %}
+          {% for t, f in [('S','hours_small'),('M','hours_medium'),('L','hours_large'),('XL','hours_xl')] %}
+            <div>{{ t }} <input class="short" name="{{ k }}{{ f }}" value="{{ p[f]|num }}"></div>{% endfor %}
+          <input type="hidden" name="{{ k }}hours_per_unit" value="{{ p.hours_per_unit|num }}">
+        {% else %}
+          <input class="short" name="{{ k }}hours_per_unit" value="{{ p.hours_per_unit|num }}" placeholder="{{ p.service_type.default_hours_per_unit|num if p.service_type else '' }}">
+          {% for f in ['hours_small','hours_medium','hours_large','hours_xl'] %}<input type="hidden" name="{{ k }}{{ f }}" value="{{ p[f]|num }}">{% endfor %}
+        {% endif %}
+      </td>
+      <td>
+        <select name="{{ k }}service_type_id" style="max-width:12rem"><option value="">No service line</option>
+          {% for s in service_types %}<option value="{{ s.id }}" {{ 'selected' if s.id == p.service_type_id }}>{{ s.service_name }}</option>{% endfor %}</select><br>
+        <input name="{{ k }}group_key" value="{{ p.group_key or '' }}" placeholder="Discount group" style="margin-top:.2rem;width:9rem" title="Lines that share a group are discounted together by a percent-of-group line">
+      </td>
+      <td>
+        <label style="color:inherit"><input type="checkbox" name="{{ k }}active" {{ 'checked' if p.active }}> Active</label>
+        {% if p.needs_review %}<label style="color:inherit"><input type="checkbox" name="{{ k }}reviewed"> Reviewed</label><span class="badge review">needs review</span>{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p><button class="btn primary">Save price list</button></p>
+</div>
+</form>
+<div class="card">
+  <h3>Add a price line</h3>
+  <form class="row" method="post" action="/prices/new">
+    <input name="item_name" placeholder="Service name" required style="min-width:16rem"><input name="variant" placeholder="Option">
+    <select name="income_category">{{ m.options(INCOME_CATEGORIES, 'Consultation') }}</select>
+    <select name="method">{% for key, label in PRICE_METHODS.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
+    <input name="rate" type="number" step="any" placeholder="Rate"><button class="btn">Add</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card" id="zones">
+  <h2>Zone charges {{ school_year }}</h2>
+  <p class="muted">Looked up from one-way mileage, the same way as the worksheet: each band covers its mileage up to the next band. A trip under the first band uses the first band's rate and shows a warning on the quote (the worksheet showed #N/A there).</p>
+  {% if zones %}
+  <form method="post" action="/zones/save">
+  <table style="max-width:640px">
+    <thead><tr><th>Zone</th><th>From miles (one way)</th><th class="num">Zone charge</th><th class="num">Additional person</th></tr></thead>
+    <tbody>{% for z in zones %}<tr><td>{{ z.zone_no }}</td><td><input class="short" name="z{{ z.id }}_miles" value="{{ z.miles_from|num }}"></td>
+      <td class="num"><input type="number" step="any" name="z{{ z.id }}_charge" value="{{ z.zone_charge|num }}"></td>
+      <td class="num"><input type="number" step="any" name="z{{ z.id }}_add" value="{{ z.additional_person_charge|num }}"></td></tr>{% endfor %}</tbody>
+  </table>
+  <p><button class="btn primary">Save zone table</button></p>
+  </form>
+  {% else %}<p class="muted">No zone table for {{ school_year }}. It's imported with the Quote Pricing Worksheet.</p>{% endif %}
+</div>
+{% endblock %}

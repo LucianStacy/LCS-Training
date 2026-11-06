@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Lead · {{ pname(lead) }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ pname(lead) }}</h1><p class="sub">{{ lead.school_year }} lead · {{ m.badge(lead.status) }} · <a href="{{ party_url(lead.party_type, lead.party_id) }}">client page</a></p></div>
+  <form method="post" action="/quotes/new"><input type="hidden" name="lead_id" value="{{ lead.id }}"><button class="btn primary">Write a quote</button></form>
+</div>
+<form method="post">
+<div class="grid g2">
+  <div class="card">
+    <h2>Lead</h2>
+    <div class="fields">
+      <div class="field"><label>Status</label><select class="wide" name="status">{{ m.options(LEAD_STATUSES, lead.status) }}</select></div>
+      <div class="field"><label>First contact</label><input type="date" name="initial_query_date" value="{{ lead.initial_query_date.isoformat() if lead.initial_query_date else '' }}">
+        {% if lead.initial_query_note %}<br><small>{{ lead.initial_query_note }}</small>{% endif %}</div>
+      <div class="field"><label>Where it came from</label><input class="wide" name="source" value="{{ lead.source or '' }}"></div>
+      <div class="field"><label>Contact(s)</label><input class="wide" name="contact_text" value="{{ lead.contact_text or '' }}"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea name="notes">{{ lead.notes or '' }}</textarea></div>
+  </div>
+  <div class="card">
+    <h2>Quotes</h2>
+    <table><thead><tr><th>Quote</th><th>Date</th><th>Status</th><th class="num">Total</th></tr></thead>
+    <tbody>{% for q in quotes %}<tr><td><a href="/quotes/{{ q.id }}">{{ q.quote_number }}</a></td><td>{{ q.quote_date|fdate }}</td><td>{{ m.badge(q.status) }}</td><td class="num">{{ q.grand_total|money }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">No quotes yet.</td></tr>{% endfor %}</tbody></table>
+    {% if lead.legacy_quote_count %}
+    <p class="muted">From the spreadsheet: {{ lead.legacy_quote_count }} quote(s) · {{ lead.legacy_amendment_count or 0 }} amendment(s) ·
+      high {{ lead.legacy_highest_quoted|money(False) }} · low {{ lead.legacy_lowest_quoted|money(False) }} ·
+      total {{ lead.legacy_total_quoted|money(False) }} · accepted {{ lead.legacy_accepted_amount|money(False) }} · won {{ lead.legacy_quotes_won or 0 }}</p>
+    {% endif %}
+  </div>
+</div>
+<div class="card">
+  <div class="row"><h2 style="margin:0">Steps</h2>{{ m.progress(lead.steps) }}</div>
+  {{ m.steps_table(lead.steps) }}
+  <p><button class="btn primary">Save lead</button></p>
+</div>
+</form>
+{% endblock %}

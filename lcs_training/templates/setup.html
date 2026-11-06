@@ -1,0 +1,60 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Setup{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Setup</h1><p class="sub">Service types, onboarding templates and your name for the audit trail.</p></div></div>
+
+<div class="card">
+  <form class="row" method="post" action="/setup/user">
+    <label style="margin:0">Your name (recorded on amendments)</label><input name="user_name" value="{{ user }}"><button class="btn small">Save</button>
+  </form>
+</div>
+
+<form method="post" action="/setup/services">
+<div class="card table-wrap">
+  <h2 style="margin-top:0">Service types</h2>
+  <p class="muted">These are the services a contract can include. "Coach hours per unit" is the default workload (delivery + prep) used for capacity; price-list lines and contract lines can override it.</p>
+  <table>
+    <thead><tr><th>Service</th><th>Kind</th><th>Counted in</th><th>Coach hours / unit</th><th>Active</th><th>Notes</th></tr></thead>
+    <tbody>
+    {% for s in service_types %}{% set k = 'st' ~ s.id ~ '_' %}
+      <tr><td><input name="{{ k }}name" value="{{ s.service_name }}"></td>
+        <td><select name="{{ k }}kind">{{ m.options(SERVICE_KINDS, s.kind) }}</select></td>
+        <td><select name="{{ k }}unit">{{ m.options(DELIVERY_UNITS, s.delivery_unit) }}</select></td>
+        <td><input class="short" name="{{ k }}hours" value="{{ s.default_hours_per_unit|num }}">{% if not s.default_hours_per_unit %} <span class="badge review">not set</span>{% endif %}</td>
+        <td><input type="checkbox" name="{{ k }}active" {{ 'checked' if s.active }}></td>
+        <td><small>{{ s.notes or '' }}</small></td></tr>
+    {% endfor %}
+      <tr><td><input name="new_name" placeholder="Add a service type"></td><td><select name="new_kind">{{ m.options(SERVICE_KINDS, 'Training') }}</select></td>
+        <td><select name="new_unit">{{ m.options(DELIVERY_UNITS, 'session') }}</select></td><td><input class="short" name="new_hours" placeholder="0"></td><td></td><td></td></tr>
+    </tbody>
+  </table>
+  <p><button class="btn primary">Save service types</button></p>
+</div>
+</form>
+
+<div class="card">
+  <h2 style="margin-top:0">Onboarding task templates</h2>
+  <p class="muted">When a contract leaves Draft, its checklist gets the general tasks plus the tasks of every template whose service is on the contract. A district that bought SEIS coaching only sees coaching tasks.</p>
+  {% for t in templates_ %}
+  <details id="t{{ t.id }}" style="border-top:1px solid var(--line);padding:.5rem 0">
+    <summary><b>{{ t.title }}</b> <span class="muted">· {{ t.service_type.service_name if t.service_type else 'every contract' }} · {{ t.items|length }} task(s)</span></summary>
+    <form method="post" action="/setup/templates/{{ t.id }}" style="margin-top:.5rem">
+      <div class="fields">
+        <div class="field"><label>Title</label><input class="wide" name="title" value="{{ t.title }}"></div>
+        <div class="field"><label>Applies to</label><select class="wide" name="service_type_id"><option value="">Every contract</option>
+          {% for s in service_types %}<option value="{{ s.id }}" {{ 'selected' if t.service_type_id == s.id }}>{{ s.service_name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Source document (SOP)</label><input class="wide" name="source_document" value="{{ t.source_document or '' }}"></div>
+      </div>
+      <table><thead><tr><th>Stage</th><th>Task</th><th>Remove</th></tr></thead><tbody>
+        {% for it in t.items %}<tr><td><input name="i{{ it.id }}_stage" value="{{ it.stage or '' }}"></td><td><input class="wide" name="i{{ it.id }}_task" value="{{ it.task }}"></td><td><input type="checkbox" name="i{{ it.id }}_remove"></td></tr>{% endfor %}
+        <tr><td><input name="new_stage" placeholder="Stage"></td><td><input class="wide" name="new_task" placeholder="Add a task"></td><td></td></tr>
+      </tbody></table>
+      <p><button class="btn small primary">Save template</button></p>
+    </form>
+  </details>
+  {% endfor %}
+  <form class="row" method="post" action="/setup/templates" style="margin-top:.6rem">
+    <input name="title" placeholder="New template title"><select name="service_type_id"><option value="">Every contract</option>{% for s in service_types %}<option value="{{ s.id }}">{{ s.service_name }}</option>{% endfor %}</select>
+    <button class="btn small">Add template</button></form>
+</div>
+{% endblock %}

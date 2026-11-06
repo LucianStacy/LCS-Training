@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Coaches{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Coach capacity {{ school_year }}</h1>
+    <p class="sub">Capacity minus time off, compared with each coach's workload: the larger of contracted and delivered hours on every service line assigned to them.</p></div>
+  <form class="row" method="post" action="/coaches/new"><input name="coach_name" placeholder="New coach name" required><button class="btn">Add coach</button></form>
+</div>
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>Coach</th><th class="num">Capacity (net of time off)</th><th class="num">Committed</th><th class="num">Delivered</th><th class="num">Workload</th><th class="num">Headroom for the year</th><th class="num">Headroom from today</th><th>Load</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td><a href="/coaches/{{ r.coach.id }}">{{ r.coach.coach_name }}</a>{% if not r.coach.active %} <small>(inactive)</small>{% endif %}</td>
+      <td class="num">{{ r.annual_net|num }}</td><td class="num">{{ r.committed|num }}</td><td class="num">{{ r.delivered|num }}</td>
+      <td class="num">{{ r.load|num }}</td>
+      <td class="num" style="{{ 'color:#a3104c;font-weight:700' if r.headroom < 0 }}">{{ r.headroom|num }}</td>
+      <td class="num" style="{{ 'color:#a3104c;font-weight:700' if r.remaining_headroom < 0 }}">{{ r.remaining_headroom|num }}</td>
+      <td style="min-width:140px">{{ m.bar(r.load / r.annual_net if r.annual_net else none) }}</td></tr>
+  {% else %}<tr><td colspan="8" class="muted">No coaches yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% if pooled_lines %}
+<div class="card table-wrap">
+  <h2 style="margin-top:0">Waiting for a coach: {{ pooled|num }} hours</h2>
+  <p class="muted">Pooled demand: committed hours on service lines that don't have a coach yet. Assign them on each contract's Services tab.</p>
+  <table><thead><tr><th>Client</th><th>Service</th><th class="num">Qty</th><th class="num">Hours</th></tr></thead>
+  <tbody>{% for ln in pooled_lines %}<tr><td><a href="/contracts/{{ ln.contract_id }}?tab=services">{{ pname(ln.contract) }}</a></td><td>{{ ln.service_type.service_name }}</td><td class="num">{{ ln.contracted_quantity|num }}</td><td class="num">{{ ln.committed_hours|num }}</td></tr>{% endfor %}</tbody></table>
+</div>
+{% endif %}
+<p class="muted">Committed hours = contracted quantity × coach hours per unit, which includes prep time (the Specialist Capacity Tracker's "max time" assumptions). Change the hours per unit on the Price List, the Setup page, or a contract's service line.</p>
+{% endblock %}

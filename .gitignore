@@ -1,0 +1,17 @@
+# Client data must never be committed (this repository is public)
+data/
+*.db
+*.db-wal
+*.db-shm
+*.xlsx
+*.xls
+*.csv
+*.docx
+*.zip
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.claude/

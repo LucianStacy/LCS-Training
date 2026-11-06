@@ -1,0 +1,112 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Quote {{ q.quote_number }}{% endblock %}
+{% block content %}
+{% set locked = q.status == 'Accepted' %}
+<div class="page-head">
+  <div><h1>Quote {{ q.quote_number }}{% if q.is_amendment %} <small>(amendment)</small>{% endif %}</h1>
+    <p class="sub"><a href="{{ party_url(q.party_type, q.party_id) }}">{{ party.name }}</a> · {{ q.school_year }} · {{ m.badge(q.status) }}
+      {% if q.lead %} · <a href="/leads/{{ q.lead.id }}">lead</a>{% endif %}
+      {% if q.is_amendment and q.amends_contract_id %} · amends <a href="/contracts/{{ q.amends_contract_id }}">contract</a>{% endif %}</p></div>
+  <div class="row">
+    <a class="btn" href="/quotes/{{ q.id }}/print" target="_blank">Print / PDF</a>
+    {% if not locked %}
+    <form method="post" action="/quotes/{{ q.id }}/status" onsubmit="return confirm('Accept this quote? {{ 'Its services will be added to the contract and billing reset.' if q.is_amendment else 'This creates the contract, its service lines and the billing schedule.' }}')">
+      <input type="hidden" name="status" value="Accepted"><button class="btn primary">Quote accepted</button></form>
+    <form method="post" action="/quotes/{{ q.id }}/status"><input type="hidden" name="status" value="Declined"><button class="btn">Declined</button></form>
+    {% endif %}
+  </div>
+</div>
+{% if needs_review %}<div class="notice">This price list still has lines marked <b>needs review</b> on the <a href="/prices">Price List</a>.</div>{% endif %}
+{% if warnings %}<div class="notice"><b>Check:</b><ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>{% endif %}
+
+<form method="post">
+<div class="quote-layout">
+  <div>
+    <div class="card">
+      <div class="fields">
+        <div class="field"><label>Quote date</label><input type="date" name="quote_date" value="{{ q.quote_date.isoformat() }}" {{ 'disabled' if locked }}></div>
+        <div class="field"><label>Valid until</label><input type="date" name="valid_until" value="{{ q.valid_until.isoformat() if q.valid_until else '' }}" {{ 'disabled' if locked }}></div>
+        <div class="field"><label>Size tier (# students in SEIS)</label><select name="student_tier" {{ 'disabled' if locked }}><option value="">Not set</option>
+          {% for t in STUDENT_TIERS %}<option value="{{ t }}" {{ 'selected' if q.student_tier == t }}>{{ t }} ({{ TIER_HELP[t] }})</option>{% endfor %}</select></div>
+        <div class="field"><label>One-way mileage (for zone charge)</label><input type="number" step="any" name="one_way_mileage" value="{{ q.one_way_mileage|num }}" {{ 'disabled' if locked }}>
+          {% if zone %}<small>Zone {{ zone.zone_no }}: {{ zone.zone_charge|money(False) }} / trip</small>{% endif %}</div>
+      </div>
+    </div>
+
+    {% for cat, items in sections %}
+    <div class="card table-wrap">
+      <h2 style="margin-top:0">{{ cat }}</h2>
+      <table>
+        <thead><tr><th>Service</th><th></th><th>Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+        {% for p in items %}{% set it = lines.get(p.id) %}
+          <tr class="qline {{ 'on' if it and it.qty }}">
+            <td>{{ p.item_name }}{% if p.variant %} <span class="muted">· {{ p.variant }}</span>{% endif %}
+              {% if p.description %}<br><small>{{ p.description }}</small>{% endif %}
+              {% if p.bulk_min_qty %}<br><small>{{ (p.bulk_discount_pct*100)|num }}% off at {{ p.bulk_min_qty|num }}+</small>{% endif %}
+              {% if p.needs_review %} <span class="badge review" title="Price needs review">review</span>{% endif %}</td>
+            <td><small>{{ p.qty_label or ('Apply' if p.method == 'percent_of_group' else '') }}</small></td>
+            <td style="white-space:nowrap"><input type="number" step="any" min="0" name="qty_{{ p.id }}" value="{{ it.qty|num if it else '' }}" class="short" {{ 'disabled' if locked }}>
+              {% if p.method == 'two_factor' %}<small> × {{ p.factor_label }}</small> <input type="number" step="any" min="0" name="factor_{{ p.id }}" value="{{ it.factor|num if it and it.factor else '' }}" class="short" {{ 'disabled' if locked }}>{% endif %}</td>
+            <td class="num">{% if p.method == 'tiered' %}{% if q.student_tier %}{{ p.tier_rate(q.student_tier)|money(False) }}{% else %}<small>S {{ p.rate_small|money(False) }} – XL {{ p.rate_xl|money(False) }}</small>{% endif %}
+              {% elif p.method == 'percent_of_group' %}{{ (p.rate*100)|num }}% off
+              {% elif p.method in ('zone','zone_additional') %}{% if zone %}{{ (zone.zone_charge if p.method == 'zone' else zone.additional_person_charge)|money(False) }}{% else %}<small>by mileage</small>{% endif %}
+              {% else %}{{ ('-' if p.method == 'discount' else '') }}{{ p.rate|money(False) }}{% endif %}</td>
+            <td class="num">{{ it.amount|money if it else '' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+
+    <div class="card table-wrap">
+      <h2 style="margin-top:0">Additional, unlisted services</h2>
+      <table>
+        <thead><tr><th>Description</th><th>Category</th><th>Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+        {% for it in custom %}{% set k = 'c' ~ it.id ~ '_' %}
+          <tr><td><input class="wide" name="{{ k }}description" value="{{ it.description or '' }}" {{ 'disabled' if locked }}></td>
+            <td><select name="{{ k }}income_category" {{ 'disabled' if locked }}>{{ m.options(INCOME_CATEGORIES, it.income_category) }}</select></td>
+            <td><input type="number" step="any" class="short" name="{{ k }}qty" value="{{ it.qty|num }}" {{ 'disabled' if locked }}></td>
+            <td class="num"><input type="number" step="any" name="{{ k }}rate" value="{{ it.rate|num }}" {{ 'disabled' if locked }}></td>
+            <td class="num">{{ it.amount|money }}</td></tr>
+        {% endfor %}
+        {% if not locked %}
+          <tr><td><input class="wide" name="new_description" placeholder="Add a line…"></td>
+            <td><select name="new_category">{{ m.options(INCOME_CATEGORIES, 'Other') }}</select></td>
+            <td><input type="number" step="any" class="short" name="new_qty" placeholder="1"></td>
+            <td class="num"><input type="number" step="any" name="new_rate" placeholder="0"></td><td></td></tr>
+        {% endif %}
+        </tbody>
+      </table>
+      <small class="muted">Set the quantity to 0 to remove a line.</small>
+    </div>
+
+    <div class="card">
+      <div class="field"><label>Details for the client per discussion (printed on the quote)</label><textarea name="client_details" {{ 'disabled' if locked }}>{{ q.client_details or '' }}</textarea></div>
+      <div class="field"><label>Internal notes (not printed)</label><textarea name="internal_notes" {{ 'disabled' if locked }}>{{ q.internal_notes or '' }}</textarea></div>
+    </div>
+  </div>
+
+  <div class="quote-side">
+    <div class="card">
+      <h2 style="margin-top:0">Total</h2>
+      <table>
+        <tbody>
+        {% for k in CATS %}<tr><td>{{ CAT_LABEL[k] }}</td><td class="num">{{ q['total_' ~ k]|money }}</td></tr>{% endfor %}
+        <tr class="total"><td>Total quote</td><td class="num">{{ q.grand_total|money }}</td></tr>
+        </tbody>
+      </table>
+      {% if not locked %}
+      <p class="row" style="margin-bottom:0"><button class="btn primary" name="action" value="save">Save &amp; recalculate</button>
+        <button class="btn" name="action" value="send">Save &amp; mark sent</button></p>
+      {% endif %}
+    </div>
+    {% if not locked %}
+    <form method="post" action="/quotes/{{ q.id }}/delete" onsubmit="return confirm('Delete this quote?')"><button class="btn link">Delete quote</button></form>
+    {% endif %}
+  </div>
+</div>
+</form>
+{% endblock %}

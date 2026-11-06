@@ -1,0 +1,80 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}{{ p.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ p.name }}</h1>
+    <p class="sub">{{ 'SELPA' if kind == 'selpa' else p.client_kind }}{% if kind == 'district' and p.selpa %} · member of <a href="{{ party_url(PARTY_SELPA, p.selpa.id) }}">{{ p.selpa.selpa_name }}</a>{% endif %}</p></div>
+  <div class="row">
+    <form method="post" action="/quotes/new"><input type="hidden" name="party" value="{{ p.party_type }}:{{ p.id }}"><button class="btn primary">New quote</button></form>
+    <form method="post" action="/leads/new"><input type="hidden" name="party" value="{{ p.party_type }}:{{ p.id }}"><button class="btn">New lead</button></form>
+  </div>
+</div>
+
+<div class="grid g2">
+  <div class="card">
+    <h2>Details</h2>
+    <form method="post">
+      <div class="fields">
+        <div class="field"><label>Name</label><input class="wide" name="name" value="{{ p.name }}"></div>
+        {% if kind == 'district' %}
+        <div class="field"><label>Type</label><select class="wide" name="client_kind">{{ m.options(CLIENT_KINDS, p.client_kind) }}</select></div>
+        <div class="field"><label>SELPA</label><select class="wide" name="selpa_id"><option value="">None</option>
+          {% for s in selpas %}<option value="{{ s.id }}" {{ 'selected' if p.selpa_id == s.id }}>{{ s.selpa_name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Primary contact</label><select class="wide" name="primary_contact_id"><option value="">None</option>
+          {% for c in contacts %}<option value="{{ c.id }}" {{ 'selected' if p.primary_contact_id == c.id }}>{{ c.full_name }}</option>{% endfor %}</select></div>
+        {% endif %}
+        <div class="field"><label>Size tier (students in SEIS, for audit pricing)</label><select class="wide" name="student_tier">
+          <option value="">Not set</option>{% for t in STUDENT_TIERS %}<option value="{{ t }}" {{ 'selected' if p.student_tier == t }}>{{ t }} ({{ TIER_HELP[t] }})</option>{% endfor %}</select></div>
+        <div class="field"><label>Region</label><input class="wide" name="region" value="{{ p.region or '' }}"></div>
+      </div>
+      <div class="field"><label>Other names used for this client (one per line; used when importing)</label><textarea name="aliases">{{ p.aliases or '' }}</textarea></div>
+      <div class="field"><label>Notes</label><textarea name="notes">{{ p.notes or '' }}</textarea></div>
+      <button class="btn primary">Save</button>
+    </form>
+    {% if kind == 'selpa' and p.member_districts %}
+      <h3>Member districts</h3>
+      <ul>{% for d in p.member_districts %}<li><a href="{{ party_url(PARTY_DISTRICT, d.id) }}">{{ d.district_name }}</a></li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Quote history</h2>
+    <div class="grid g3" style="margin-bottom:.75rem">
+      <div class="stat"><div class="label">Quotes</div><div class="value">{{ stats.count }}</div><div class="hint">{{ stats.amendments }} amendments · {{ stats.won }} won</div></div>
+      <div class="stat"><div class="label">Highest / lowest</div><div class="value" style="font-size:1rem">{{ stats.high|money(False) }} / {{ stats.low|money(False) }}</div></div>
+      <div class="stat"><div class="label">Accepted</div><div class="value purple" style="font-size:1.1rem">{{ stats.accepted|money(False) }}</div><div class="hint">of {{ stats.total|money(False) }} quoted</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Quote</th><th>Date</th><th>Status</th><th class="num">Total</th></tr></thead>
+      <tbody>{% for q in quotes %}<tr><td><a href="/quotes/{{ q.id }}">{{ q.quote_number }}</a>{% if q.is_amendment %} <small>(amendment)</small>{% endif %}</td><td>{{ q.quote_date|fdate }}</td><td>{{ m.badge(q.status) }}</td><td class="num">{{ q.grand_total|money }}</td></tr>
+      {% else %}<tr><td colspan="4" class="muted">No quotes in the app yet.</td></tr>{% endfor %}</tbody>
+    </table>
+    {% for l in leads %}{% if l.legacy_quote_count %}
+      <p class="muted">From the {{ l.school_year }} spreadsheet: {{ l.legacy_quote_count }} quote(s), {{ l.legacy_amendment_count or 0 }} amendment(s), {{ l.legacy_total_quoted|money(False) }} quoted, {{ l.legacy_accepted_amount|money(False) }} accepted.</p>
+    {% endif %}{% endfor %}
+
+    <h2>Contracts</h2>
+    <table>
+      <thead><tr><th>Year</th><th>Status</th><th class="num">Value</th></tr></thead>
+      <tbody>{% for c in contracts %}<tr><td><a href="/contracts/{{ c.id }}">{{ c.school_year }}</a></td><td>{{ m.badge(c.status) }}</td><td class="num">{{ c.total_contract_value|money }}</td></tr>
+      {% else %}<tr><td colspan="3" class="muted">No contracts.</td></tr>{% endfor %}</tbody>
+    </table>
+    <h2>Leads</h2>
+    <ul>{% for l in leads %}<li><a href="/leads/{{ l.id }}">{{ l.school_year }} lead</a> {{ m.badge(l.status) }}</li>{% else %}<li class="muted">None</li>{% endfor %}</ul>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Contacts</h2>
+  {% include "_contact_table.html" %}
+</div>
+
+<details class="card">
+  <summary><b>Merge into another client</b> <span class="muted">(for duplicates created by an import)</span></summary>
+  <p>Moves every contact, quote, lead and contract from <b>{{ p.name }}</b> to the client you pick, keeps "{{ p.name }}" as one of its other names, then deletes this record.</p>
+  <form method="post" action="{{ party_url(p.party_type, p.id) }}/merge" class="row" onsubmit="return confirm('Merge {{ p.name|e }} into the selected client? This cannot be undone.')">
+    <select name="target" required>{{ m.party_options(others) }}</select>
+    <button class="btn danger">Merge</button>
+  </form>
+</details>
+{% endblock %}

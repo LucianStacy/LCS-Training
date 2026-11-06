@@ -1,0 +1,47 @@
+{# expects: contacts (list), tags, optional p (party) #}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th><th></th></tr></thead>
+  <tbody>
+  {% for c in contacts %}
+    <tr>
+      <td>{{ c.full_name }}{% if c.designation %}<br><small>{{ c.designation }}</small>{% endif %}{% if c.notes %}<br><small>{{ c.notes }}</small>{% endif %}</td>
+      <td>{% if c.email_id %}<a href="mailto:{{ c.email_id }}">{{ c.email_id }}</a>{% endif %}</td>
+      <td>{{ c.phone or '' }}</td>
+      <td>{% for ti in c.tags %}<span class="badge" title="{{ ti.note or '' }}">{{ ti.tag.tag_name }}{% if ti.note %} · {{ ti.note }}{% endif %}</span> {% endfor %}</td>
+      <td><details><summary class="btn small">Edit</summary>
+        <form method="post" action="/contacts/save" style="margin-top:.5rem;min-width:320px">
+          <input type="hidden" name="id" value="{{ c.id }}"><input type="hidden" name="back" value="{{ request.url.path }}">
+          {% if p %}<input type="hidden" name="party" value="{{ p.party_type }}:{{ p.id }}">{% else %}
+          <div class="field"><label>Client</label><select class="wide" name="party">{{ m.party_options(parties, c.party_type, c.party_id, "No client") }}</select></div>{% endif %}
+          <div class="field"><label>Name</label><input class="wide" name="full_name" value="{{ c.full_name }}"></div>
+          <div class="field"><label>Email</label><input class="wide" name="email_id" value="{{ c.email_id or '' }}"></div>
+          <div class="field"><label>Phone</label><input class="wide" name="phone" value="{{ c.phone or '' }}"></div>
+          <div class="field"><label>Title</label><input class="wide" name="designation" value="{{ c.designation or '' }}"></div>
+          <div class="field"><label>Tags</label>{% set mine = c.tags|map(attribute='tag_id')|list %}
+            {% for t in tags %}<label style="display:inline-block;margin-right:.6rem;color:inherit"><input type="checkbox" name="tags" value="{{ t.id }}" {{ 'checked' if t.id in mine }}> {{ t.tag_name }}</label>{% endfor %}</div>
+          <div class="field"><label>Notes</label><textarea name="notes">{{ c.notes or '' }}</textarea></div>
+          <button class="btn primary small">Save</button>
+        </form>
+        <form method="post" action="/contacts/{{ c.id }}/delete" onsubmit="return confirm('Delete this contact?')"><input type="hidden" name="back" value="{{ request.url.path }}"><button class="btn link">Delete contact</button></form>
+      </details></td>
+    </tr>
+  {% else %}<tr><td colspan="5" class="muted">No contacts.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+<details style="margin-top:.6rem"><summary class="btn small">Add contact</summary>
+  <form method="post" action="/contacts/save" style="margin-top:.5rem">
+    <input type="hidden" name="back" value="{{ request.url.path }}">
+    {% if p %}<input type="hidden" name="party" value="{{ p.party_type }}:{{ p.id }}">{% endif %}
+    <div class="fields">
+      {% if not p %}<div class="field"><label>Client</label><select class="wide" name="party">{{ m.party_options(parties, None, None, "No client") }}</select></div>{% endif %}
+      <div class="field"><label>Name</label><input class="wide" name="full_name" required></div>
+      <div class="field"><label>Email</label><input class="wide" name="email_id"></div>
+      <div class="field"><label>Phone</label><input class="wide" name="phone"></div>
+      <div class="field"><label>Title</label><input class="wide" name="designation"></div>
+    </div>
+    <div class="field"><label>Tags</label>{% for t in tags %}<label style="display:inline-block;margin-right:.6rem;color:inherit"><input type="checkbox" name="tags" value="{{ t.id }}"> {{ t.tag_name }}</label>{% endfor %}</div>
+    <button class="btn primary small">Add contact</button>
+  </form>
+</details>

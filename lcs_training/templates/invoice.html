@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Invoice sheet{% endblock %}
+{% block content %}
+<p class="no-print row"><button class="btn primary" onclick="window.print()">Print / save as PDF</button><a class="btn" href="/contracts/{{ c.id }}?tab=billing">Back to billing</a></p>
+<div class="print-page">
+  <div class="print-head">
+    <img src="/static/logo.png" alt="LCS-Training">
+    <div style="text-align:right"><h1 style="margin:0">Invoicing Sheet</h1>
+      <div>Installment {{ idx or '' }} of {{ n }}</div><div>Due {{ i.due_date|fdate("%B %d, %Y") }}</div></div>
+  </div>
+  <p><b>Client:</b> {{ party.name }}{% if c.po_number %}<br><b>P.O.:</b> {{ c.po_number }}{% endif %}{% if c.invoice_email %}<br><b>Send to:</b> {{ c.invoice_email }}{% endif %}</p>
+  <table>
+    <thead><tr><th>Income category</th><th>Services</th><th class="num">Contract amount</th><th class="num">This invoice</th></tr></thead>
+    <tbody>
+      {% set svc = {'consultation': 'Consult hours / LCS Data Meeting subscription / Email Q&A subscription / data audits',
+                    'training': 'Trainings / TOT meetings / New Data Tech Onboarding Program', 'travel': 'Travel expenses',
+                    'zone': 'Zone charge', 'other': 'Other services and fees'} %}
+      {% for k in CATS %}{% if c['amount_' ~ k] or i['amount_' ~ k] %}
+        <tr><td>{{ 'Training - Customer' if k == 'training' else ('Travel Income' if k == 'travel' else ('Zone Charges' if k == 'zone' else CAT_LABEL[k])) }}</td>
+          <td><small>{{ svc[k] }}</small></td><td class="num">{{ c['amount_' ~ k]|money }}</td><td class="num">{{ i['amount_' ~ k]|money }}</td></tr>
+      {% endif %}{% endfor %}
+      <tr class="total"><td colspan="2">Total</td><td class="num">{{ c.total_contract_value|money }}</td><td class="num">{{ i.amount|money }}</td></tr>
+    </tbody>
+  </table>
+  <h3>Notes to put on the invoice</h3>
+  <p>Your contracted services have been split into {{ n }} payment{{ 's' if n != 1 }}. All invoices from this point forward will be issued at the beginning of each month you are contracted for.{% if last %} Your last invoice will be issued at the beginning of {{ last|fdate("%B %Y") }}.{% endif %}{% if c.po_number %} <b>P.O. # {{ c.po_number }} must appear on all invoices.</b>{% endif %}</p>
+  {% if c.invoice_notes %}<h3 class="no-print">Internal notes (not on the invoice)</h3><p class="no-print" style="white-space:pre-wrap">{{ c.invoice_notes }}</p>{% endif %}
+  <div class="print-foot">{{ FOOTER_LINE }}</div>
+</div>
+{% endblock %}

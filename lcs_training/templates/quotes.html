@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Quotes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Quotes</h1><p class="sub">Quote numbers follow the existing pattern: date + sequence (e.g. 20260806-01).</p></div>
+  <form class="row" method="get"><select name="status" onchange="this.form.submit()">{{ m.options(QUOTE_STATUSES, status, "All statuses") }}</select></form>
+</div>
+<div class="card">
+  <form class="row" method="post" action="/quotes/new">
+    <select name="party" required>{{ m.party_options(parties) }}</select>
+    <button class="btn primary">New quote for {{ school_year }}</button>
+  </form>
+</div>
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>Quote</th><th>Date</th><th>Client</th><th>Year</th><th>Status</th><th class="num">Consultation</th><th class="num">Training</th><th class="num">Travel + Zone</th><th class="num">Total</th></tr></thead>
+  <tbody>
+  {% for q in rows %}
+    <tr><td><a href="/quotes/{{ q.id }}">{{ q.quote_number }}</a>{% if q.is_amendment %} <small>amendment</small>{% endif %}</td>
+      <td>{{ q.quote_date|fdate }}</td><td>{{ pname(q) }}</td><td>{{ q.school_year }}</td><td>{{ m.badge(q.status) }}</td>
+      <td class="num">{{ q.total_consultation|money(False) }}</td><td class="num">{{ q.total_training|money(False) }}</td>
+      <td class="num">{{ (q.total_travel + q.total_zone)|money(False) }}</td><td class="num"><b>{{ q.grand_total|money }}</b></td></tr>
+  {% else %}<tr><td colspan="9" class="muted">No quotes yet. Quotes from before this app are summarised on each lead.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

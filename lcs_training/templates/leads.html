@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Leads{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Leads</h1><p class="sub">Lead &amp; quote tracking for {{ school_year }}</p></div>
+  <form class="row" method="get"><select name="status" onchange="this.form.submit()">{{ m.options(LEAD_STATUSES, status, "All statuses") }}</select></form>
+</div>
+<div class="card">
+  <form class="row" method="post" action="/leads/new">
+    <select name="party" required>{{ m.party_options(parties) }}</select>
+    <input name="contact_text" placeholder="Contact name(s)">
+    <input name="source" placeholder="Where it came from">
+    <input type="date" name="initial_query_date" value="{{ today.isoformat() }}">
+    <button class="btn primary">Add lead</button>
+  </form>
+</div>
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>Client</th><th>Contact</th><th>First contact</th><th>Source</th><th>Progress</th><th>Status</th><th>Next step</th></tr></thead>
+  <tbody>
+  {% for l in rows %}{% set nxt = l.steps|selectattr('status', 'equalto', 'Not Started')|first %}
+    <tr><td><a href="/leads/{{ l.id }}">{{ pname(l) }}</a></td>
+      <td>{{ l.contact_text or '' }}</td>
+      <td>{{ l.initial_query_date|fdate }}{% if l.initial_query_note and not l.initial_query_date %}<small>{{ l.initial_query_note }}</small>{% endif %}</td>
+      <td>{{ l.source or '' }}</td>
+      <td>{{ m.progress(l.steps) }}</td>
+      <td>{{ m.badge(l.status) }}</td>
+      <td><small>{{ nxt.step if nxt else '' }}</small></td></tr>
+  {% else %}<tr><td colspan="7" class="muted">No leads for {{ school_year }}.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Contacts{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Contacts</h1><p class="sub">District and SELPA staff. Tags pick out the right people for meetings, training, billing and outreach.</p></div>
+  <form class="row" method="get">
+    <select name="tag"><option value="">All tags</option>{% for t in tags %}<option {{ 'selected' if t.tag_name == tag }}>{{ t.tag_name }}</option>{% endfor %}</select>
+    <input name="q" value="{{ q }}" placeholder="Name or email"><button class="btn">Filter</button>
+  </form>
+</div>
+<div class="card">
+  <div class="row"><b>{{ rows|length }} contacts{% if tag %} tagged "{{ tag }}"{% endif %} · {{ emails|length }} email addresses</b>
+    <span class="spacer"></span>
+    <button class="btn small" onclick="navigator.clipboard.writeText(document.getElementById('emails').value);this.textContent='Copied'">Copy email list</button>
+    <a class="btn small" href="/contacts/emails.txt?tag={{ tag|urlencode }}">Open as text</a></div>
+  <textarea id="emails" readonly style="margin-top:.5rem;min-height:2.6rem;font-size:.85rem">{{ emails|join('; ') }}</textarea>
+  <p class="muted" style="margin:.3rem 0 0">Paste into the BCC line. In ERPNext these tags will keep Email Groups in sync automatically.</p>
+</div>
+<div class="card">
+  {% set contacts = rows %}{% set p = none %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Name</th><th>Client</th><th>Email</th><th>Tags</th><th></th></tr></thead>
+    <tbody>
+    {% for c in rows %}
+      <tr><td>{{ c.full_name }}{% if c.designation %}<br><small>{{ c.designation }}</small>{% endif %}</td>
+        <td>{% if c.party_id %}<a href="{{ party_url(c.party_type, c.party_id) }}">{{ pname(c) }}</a>{% endif %}</td>
+        <td>{% if c.email_id %}<a href="mailto:{{ c.email_id }}">{{ c.email_id }}</a>{% endif %}</td>
+        <td>{% for ti in c.tags %}<span class="badge" title="{{ ti.note or '' }}">{{ ti.tag.tag_name }}{% if ti.note %} · {{ ti.note }}{% endif %}</span> {% endfor %}</td>
+        <td>{% if c.party_id %}<a class="btn small" href="{{ party_url(c.party_type, c.party_id) }}">Edit</a>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">No contacts match.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <details style="margin-top:.6rem"><summary class="btn small">Add contact</summary>
+    <form method="post" action="/contacts/save" style="margin-top:.5rem">
+      <div class="fields">
+        <div class="field"><label>Client</label><select class="wide" name="party">{{ m.party_options(parties, None, None, "No client") }}</select></div>
+        <div class="field"><label>Name</label><input class="wide" name="full_name" required></div>
+        <div class="field"><label>Email</label><input class="wide" name="email_id"></div>
+        <div class="field"><label>Phone</label><input class="wide" name="phone"></div>
+      </div>
+      <div class="field"><label>Tags</label>{% for t in tags %}<label style="display:inline-block;margin-right:.6rem;color:inherit"><input type="checkbox" name="tags" value="{{ t.id }}"> {{ t.tag_name }}</label>{% endfor %}</div>
+      <button class="btn primary small">Add contact</button>
+    </form>
+  </details>
+</div>
+<details class="card"><summary><b>Tag list</b> <span class="muted">(controlled list, not free text)</span></summary>
+  <ul>{% for t in tags %}<li><b>{{ t.tag_name }}</b>{% if t.description %}: {{ t.description }}{% endif %}</li>{% endfor %}</ul>
+  <form class="row" method="post" action="/tags/new"><input name="tag_name" placeholder="New tag" required><input name="description" placeholder="What it's for"><button class="btn small">Add tag</button></form>
+</details>
+{% endblock %}

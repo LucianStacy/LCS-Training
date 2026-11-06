@@ -1,0 +1,249 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}{{ party.name }} {{ c.school_year }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ party.name }}</h1>
+    <p class="sub">{{ c.school_year }} contract · {{ m.badge(c.status) }} · {{ c.contract_start_date|fdate }} – {{ c.contract_end_date|fdate }}
+      · <a href="{{ party_url(c.party_type, c.party_id) }}">client page</a>{% if quote %} · from quote <a href="/quotes/{{ quote.id }}">{{ quote.quote_number }}</a>{% endif %}</p></div>
+  <form class="row" method="post" action="/contracts/{{ c.id }}/status">
+    <label style="margin:0">Status</label><select name="status">{{ m.options(CONTRACT_STATUSES, c.status) }}</select><button class="btn">Set</button>
+  </form>
+</div>
+
+<div class="grid g4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Flat-rate value</div><div class="value purple">{{ c.total_contract_value|money }}</div><div class="hint">{{ c.billing_frequency }} billing</div></div>
+  <div class="stat"><div class="label">Invoiced so far</div><div class="value">{{ billed|money(False) }}</div><div class="hint">{{ (c.total_contract_value - billed)|money(False) }} remaining</div></div>
+  <div class="stat"><div class="label">Delivered</div><div class="value">{{ util.pct|pct if util.pct is not none else '–' }}</div><div class="hint">{{ util.elapsed|pct }} of the year gone{% if util.risk %} · <span class="badge risk">{{ util.risk }}</span>{% endif %}</div></div>
+  <div class="stat"><div class="label">Onboarding</div><div class="value">{% if checklist %}{{ checklist.tasks|selectattr('status','in',['Done','N/A'])|list|length }}/{{ checklist.tasks|length }}{% else %}–{% endif %}</div><div class="hint">{{ checklist.status if checklist else 'Starts when the contract leaves Draft' }}</div></div>
+</div>
+
+{% set tabs = [('overview','Overview'),('paperwork','Paperwork'),('services','Services & coaches'),('onboarding','Onboarding'),('delivery','Trainings & audits'),('plans','Consult plans'),('billing','Billing'),('amendments','Amendments')] %}
+<nav class="tabs">{% for k, label in tabs %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}">{{ label }}</a>{% endfor %}</nav>
+
+{% if tab == 'overview' %}
+<div class="grid g2">
+  <div class="card">
+    <h2>Contract details</h2>
+    <form method="post" action="/contracts/{{ c.id }}/edit">
+      <div class="fields">
+        <div class="field"><label>Contract start</label><input type="date" name="contract_start_date" value="{{ c.contract_start_date.isoformat() }}"></div>
+        <div class="field"><label>Contract end</label><input type="date" name="contract_end_date" value="{{ c.contract_end_date.isoformat() }}"></div>
+        <div class="field"><label>P.O. number</label><input class="wide" name="po_number" value="{{ c.po_number or '' }}"></div>
+        <div class="field"><label>Send invoices to</label><input class="wide" name="invoice_email" value="{{ c.invoice_email or '' }}"></div>
+        <div class="field"><label>Main contact</label><select class="wide" name="main_contact_id"><option value="">None</option>{% for x in contacts %}<option value="{{ x.id }}" {{ 'selected' if c.main_contact_id == x.id }}>{{ x.full_name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Contracts contact</label><select class="wide" name="contracts_contact_id"><option value="">None</option>{% for x in contacts %}<option value="{{ x.id }}" {{ 'selected' if c.contracts_contact_id == x.id }}>{{ x.full_name }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="field"><label>Notes</label><textarea name="notes">{{ c.notes or '' }}</textarea></div>
+      <div class="field"><label>Invoice notes</label><textarea name="invoice_notes">{{ c.invoice_notes or '' }}</textarea></div>
+      <button class="btn primary">Save</button>
+    </form>
+    {% if c.status == 'Draft' %}
+    <form method="post" action="/contracts/{{ c.id }}/delete" onsubmit="return confirm('Delete this draft contract?')" style="margin-top:.5rem"><button class="btn link">Delete draft contract</button></form>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Services</h2>
+    <table><thead><tr><th>Service</th><th class="num">Contracted</th><th class="num">Done</th><th>Coach</th></tr></thead>
+    <tbody>{% for x in util.lines %}<tr><td>{{ x.line.service_type.service_name }}{% if x.line.notes %}<br><small>{{ x.line.notes }}</small>{% endif %}</td>
+      <td class="num">{{ x.line.contracted_quantity|num }}</td><td class="num">{{ x.done|num }}</td><td>{{ x.line.assigned_coach.coach_name if x.line.assigned_coach else '' }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">No services yet.</td></tr>{% endfor %}</tbody></table>
+    <h2>Workflow</h2>
+    <ol class="muted" style="margin:0;padding-left:1.2rem">
+      <li>Draft: collect paperwork. Marking the fully executed contract as received moves it on.</li>
+      <li>Pending Assignment: the onboarding checklist is generated from the contracted services.</li>
+      <li>Active: once every service line has a coach.</li>
+      <li>Renewal Pending / Expired: at the end of the term.</li>
+    </ol>
+  </div>
+</div>
+
+{% elif tab == 'paperwork' %}
+<div class="card">
+  <form method="post" action="/contracts/{{ c.id }}/paperwork">
+    <div class="row"><h2 style="margin:0">Contract paperwork</h2>{{ m.progress(c.paperwork) }}</div>
+    {{ m.steps_table(c.paperwork) }}
+    <p><button class="btn primary">Save paperwork</button></p>
+  </form>
+</div>
+
+{% elif tab == 'services' %}
+<div class="card table-wrap">
+  <h2 style="margin-top:0">Service lines</h2>
+  <table>
+    <thead><tr><th>Service</th><th class="num">Contracted</th><th class="num">Delivered</th><th class="num">Scheduled</th><th>Progress</th><th class="num">Coach hrs / unit</th><th>Coach</th><th>Change quantity</th></tr></thead>
+    <tbody>
+    {% for x in util.lines %}{% set ln = x.line %}
+      <tr>
+        <td><b>{{ ln.service_type.service_name }}</b>{% if ln.description and ln.description != ln.service_type.service_name %}<br><small>{{ ln.description }}</small>{% endif %}
+          <br><small>since {{ ln.effective_date|fdate }} · {{ ln.service_type.delivery_unit }}s</small></td>
+        <td class="num">{{ ln.contracted_quantity|num }}</td><td class="num">{{ x.done|num }}</td><td class="num">{{ x.scheduled|num }}</td>
+        <td style="min-width:90px">{{ m.bar(x.pct) }}{% if not x.countable %}<small class="muted">not paced</small>{% endif %}</td>
+        <td colspan="2">
+          <form method="post" action="/services/{{ ln.id }}/coach" class="row">
+            <input class="short" name="hours_per_unit" value="{{ ln.hours_per_unit|num }}" title="Coach hours per unit, including prep">
+            <select name="coach_id"><option value="">Unassigned</option>
+              {% for cid, r in coaches.items() %}<option value="{{ cid }}" {{ 'selected' if ln.assigned_coach_id == cid }}>{{ r.coach.coach_name }} ({{ r.headroom|num }} hrs free)</option>{% endfor %}</select>
+            <input name="notes" value="{{ ln.notes or '' }}" placeholder="Note" style="width:9rem">
+            <button class="btn small">Save</button>
+          </form>
+          <small class="muted">{{ ln.committed_hours|num }} committed coach hours</small>
+        </td>
+        <td>
+          <form method="post" action="/services/{{ ln.id }}/amend" class="row">
+            <input class="short" name="new_qty" placeholder="new qty">
+            {% if c.status != 'Draft' %}<input name="reason" placeholder="Reason" style="width:8rem">{% endif %}
+            <button class="btn small">Change</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}<tr><td colspan="8" class="muted">No services.</td></tr>{% endfor %}
+    {% for ln in c.services if ln.end_date %}
+      <tr class="closed"><td>{{ ln.service_type.service_name }}</td><td class="num">{{ ln.contracted_quantity|num }}</td><td colspan="6"><small>{{ ln.effective_date|fdate }} – {{ ln.end_date|fdate }} (replaced by an amendment)</small></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">The free-hours figure in each coach menu is that coach's headroom for the year after their current workload.</p>
+</div>
+<div class="card">
+  <h3>Add a service line</h3>
+  <form class="row" method="post" action="/contracts/{{ c.id }}/services/add">
+    <select name="service_type_id">{% for s in service_types %}<option value="{{ s.id }}">{{ s.service_name }}</option>{% endfor %}</select>
+    <input class="short" name="qty" placeholder="Qty" required>
+    <input name="description" placeholder="Description (optional)">
+    <input class="short" name="hours_per_unit" placeholder="hrs/unit">
+    {% if c.status != 'Draft' %}<input name="reason" placeholder="Reason for amendment">{% endif %}
+    <button class="btn">Add</button>
+  </form>
+  {% if c.status != 'Draft' %}<p class="muted">The contract is past Draft, so this is logged as an amendment. To change the price as well, write an <b>amendment quote</b> on the Amendments tab.</p>{% endif %}
+</div>
+
+{% elif tab == 'onboarding' %}
+<div class="card">
+  {% if checklist %}
+  <form method="post" action="/contracts/{{ c.id }}/onboarding">
+    <div class="row"><h2 style="margin:0">Onboarding checklist</h2>{{ m.progress(checklist.tasks) }} {{ m.badge(checklist.status) }}<span class="spacer"></span>
+      <small class="muted">Generated {{ checklist.generated_date|fdate }} from the templates that match this contract's services.</small></div>
+    {{ m.steps_table(checklist.tasks, 'task', True) }}
+    <p class="row"><input name="new_task" placeholder="Add a one-off task" style="min-width:20rem"><button class="btn primary">Save checklist</button></p>
+  </form>
+  <form method="post" action="/contracts/{{ c.id }}/onboarding/generate"><button class="btn small">Add tasks for newly added services</button></form>
+  {% else %}
+  <p>The onboarding checklist is generated when the contract moves out of Draft (e.g. when the fully executed contract is received). It only contains tasks for the services this contract includes.</p>
+  <form method="post" action="/contracts/{{ c.id }}/onboarding/generate"><button class="btn primary">Generate checklist now</button></form>
+  {% endif %}
+</div>
+
+{% elif tab == 'delivery' %}
+<div class="card table-wrap">
+  <div class="row"><h2 style="margin:0">Trainings, audits and sessions</h2><span class="spacer"></span><a class="btn primary" href="/deliveries/new?contract={{ c.id }}">Log or schedule</a></div>
+  <table style="margin-top:.6rem">
+    <thead><tr><th>Date</th><th>Service</th><th>Subject</th><th>Coach</th><th class="num">Hours</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for d in deliveries %}
+      <tr><td><a href="/deliveries/{{ d.id }}">{{ d.date_performed|fdate or 'no date' }}</a>{% if d.end_date %} – {{ d.end_date|fdate }}{% endif %} <small>{{ d.time_text or '' }}</small></td>
+        <td>{{ d.contract_service.service_type.service_name if d.contract_service else '—' }}</td>
+        <td>{{ d.subject or '' }}{% if d.audience %} <small>({{ d.audience }})</small>{% endif %}</td>
+        <td>{{ d.coach.coach_name if d.coach else '' }}</td><td class="num">{{ d.duration|num }}</td><td>{{ m.badge(d.status) }}</td></tr>
+    {% else %}<tr><td colspan="6" class="muted">Nothing logged yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% elif tab == 'plans' %}
+<div class="card">
+  <div class="row"><h2 style="margin:0">Consult plans (Pre-Consult Meeting Set Up Sheets)</h2><span class="spacer"></span>
+    <form method="post" action="/contracts/{{ c.id }}/plans/new"><button class="btn primary">New consult plan</button></form></div>
+  <table style="margin-top:.6rem">
+    <thead><tr><th>Plan</th><th>Consult date</th><th>Status</th><th class="num">Contracted</th><th class="num">Planned</th><th class="num">Held</th><th class="num">Not yet planned</th></tr></thead>
+    <tbody>{% for p in plans %}{% set h = plan_hours[p.id] %}
+      <tr><td><a href="/plans/{{ p.id }}">Plan #{{ p.id }}</a></td><td>{{ p.consult_date|fdate }}</td><td>{{ m.badge(p.status) }}</td>
+        <td class="num">{{ h.contracted|num }}</td><td class="num">{{ h.booked|num }}</td><td class="num">{{ h.held|num }}</td>
+        <td class="num" style="{{ 'color:#a3104c' if h.unbooked < 0 }}">{{ h.unbooked|num }}</td></tr>
+    {% else %}<tr><td colspan="7" class="muted">No consult plan yet.</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+
+{% elif tab == 'billing' %}
+<div class="grid g2">
+  <div class="card">
+    <h2 style="margin-top:0">Billing settings</h2>
+    <form method="post" action="/contracts/{{ c.id }}/billing-settings">
+      <div class="fields">
+        <div class="field"><label>Flat-rate contract value</label><input type="number" step="any" name="total_contract_value" value="{{ c.total_contract_value }}"></div>
+        <div class="field"><label>Frequency</label><select name="billing_frequency">{{ m.options(BILLING_FREQUENCIES, c.billing_frequency) }}</select></div>
+        <div class="field"><label>First invoice</label><input type="date" name="billing_start_date" value="{{ c.billing_start_date.isoformat() if c.billing_start_date else '' }}"></div>
+        <div class="field"><label>Last invoice (by)</label><input type="date" name="billing_end_date" value="{{ c.billing_end_date.isoformat() if c.billing_end_date else '' }}"></div>
+        <div class="field"><label>Number of installments (blank = one per period)</label><input type="number" name="number_of_installments" value="{{ c.number_of_installments or '' }}"></div>
+      </div>
+      <h3>Split by invoice category</h3>
+      <div class="fields">{% for k in CATS %}<div class="field"><label>{{ CAT_LABEL[k] }}</label><input type="number" step="any" name="amount_{{ k }}" value="{{ c['amount_' ~ k] }}"></div>{% endfor %}</div>
+      <p class="row"><button class="btn primary" name="regenerate" value="1">Save &amp; rebuild schedule</button><button class="btn">Save only</button></p>
+      <p class="muted">Rebuilding keeps every Invoiced or Paid installment and spreads what is left over the remaining dates. "Custom" frequency is never rebuilt; edit its rows by hand.</p>
+    </form>
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">Summary</h2>
+    <table><tbody>
+      <tr><td>Contract value</td><td class="num">{{ c.total_contract_value|money }}</td></tr>
+      <tr><td>Scheduled</td><td class="num">{{ scheduled|money }}</td></tr>
+      <tr><td>Invoiced or paid</td><td class="num">{{ billed|money }}</td></tr>
+      {% if (scheduled - c.total_contract_value)|abs > 0.01 %}<tr class="total"><td>Schedule doesn't match the value by</td><td class="num">{{ (scheduled - c.total_contract_value)|money }}</td></tr>{% endif %}
+    </tbody></table>
+    {% if c.invoice_notes %}<h3>Invoice notes</h3><p style="white-space:pre-wrap">{{ c.invoice_notes }}</p>{% endif %}
+  </div>
+</div>
+<div class="card table-wrap">
+  <h2 style="margin-top:0">Installments</h2>
+  <table>
+    <thead><tr><th>#</th><th>Due</th><th class="num">Amount</th><th class="num">Consult.</th><th class="num">Training</th><th class="num">Travel</th><th class="num">Zone</th><th class="num">Other</th><th>Status</th><th>Invoice #</th><th>Note</th><th></th></tr></thead>
+    <tbody>
+    {% for i in c.billing_schedule %}
+      {% set f = 'inst' ~ i.id %}
+      <tr>
+        <td>{{ loop.index }}<form id="{{ f }}" method="post" action="/installments/{{ i.id }}"></form></td>
+        <td>{% if c.billing_frequency == 'Custom' or i.status == 'Planned' %}<input form="{{ f }}" type="date" name="due_date" value="{{ i.due_date.isoformat() }}">{% else %}{{ i.due_date|fdate }}{% endif %}</td>
+        <td class="num">{% if c.billing_frequency == 'Custom' or i.status == 'Planned' %}<input form="{{ f }}" type="number" step="any" name="amount" value="{{ i.amount }}" style="width:7rem">{% else %}{{ i.amount|money }}{% endif %}</td>
+        {% for k in CATS %}<td class="num"><small>{{ i['amount_' ~ k]|money(False) if i['amount_' ~ k] else '' }}</small></td>{% endfor %}
+        <td><select form="{{ f }}" name="status">{{ m.options(INSTALLMENT_STATUSES, i.status) }}</select></td>
+        <td><input form="{{ f }}" name="invoice_ref" value="{{ i.invoice_ref or '' }}" style="width:6rem"></td>
+        <td><input form="{{ f }}" name="note" value="{{ i.note or '' }}" style="width:12rem"></td>
+        <td style="white-space:nowrap"><button form="{{ f }}" class="btn small">Save</button> <a class="btn small" href="/installments/{{ i.id }}/invoice">Invoice sheet</a>
+          {% if i.status == 'Planned' %}<button form="{{ f }}" class="btn link" name="delete" value="1" onclick="return confirm('Remove this installment?')">remove</button>{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="12" class="muted">No installments. Set the billing settings above and rebuild.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <form class="row" method="post" action="/contracts/{{ c.id }}/billing/add" style="margin-top:.6rem">
+    <b>Add installment</b><input type="date" name="due_date" required><input type="number" step="any" name="amount" placeholder="Amount" required><input name="note" placeholder="Note"><button class="btn small">Add</button>
+  </form>
+</div>
+
+{% elif tab == 'amendments' %}
+<div class="grid g2">
+  <div class="card">
+    <h2 style="margin-top:0">Amendment history</h2>
+    <table><thead><tr><th>Date</th><th>Change</th><th class="num">Value change</th><th>By</th></tr></thead>
+    <tbody>{% for a in c.amendments %}<tr><td>{{ a.amendment_date|fdate }}</td><td>{{ a.description }}{% if a.reason %}<br><small>Reason: {{ a.reason }}</small>{% endif %}</td>
+      <td class="num">{{ a.value_change|money if a.value_change else '' }}</td><td><small>{{ a.changed_by or '' }}</small></td></tr>
+    {% else %}<tr><td colspan="4" class="muted">No amendments.</td></tr>{% endfor %}</tbody></table>
+    {% if amend_quotes %}<h3>Amendment quotes</h3><ul>{% for q in amend_quotes %}<li><a href="/quotes/{{ q.id }}">{{ q.quote_number }}</a> {{ m.badge(q.status) }} {{ q.grand_total|money }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">Write an amendment quote</h2>
+    <p>Price added services with the price list. When the client accepts it, its lines are added to this contract, the value goes up, and the remaining installments are reset.</p>
+    <form method="post" action="/quotes/new"><input type="hidden" name="amends_contract_id" value="{{ c.id }}"><button class="btn primary">New amendment quote</button></form>
+    <h3>Or change the contract value directly</h3>
+    <form method="post" action="/contracts/{{ c.id }}/value">
+      <div class="fields">
+        <div class="field"><label>New flat-rate value</label><input type="number" step="any" name="new_total" value="{{ c.total_contract_value }}" required></div>
+        <div class="field"><label>Category the difference belongs to</label><select name="category">{% for k in CATS %}<option value="{{ k }}">{{ CAT_LABEL[k] }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Effective</label><input type="date" name="when" value="{{ today.isoformat() }}"></div>
+      </div>
+      <div class="field"><label>What changed</label><input class="wide" name="description" placeholder='e.g. "Added CALPADS coaching, 6 sessions/year"'></div>
+      <div class="field"><label>Reason</label><input class="wide" name="reason"></div>
+      <button class="btn">Apply amendment &amp; reset billing</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

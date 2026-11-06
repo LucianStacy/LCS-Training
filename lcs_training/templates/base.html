@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}LCS-Training{% endblock %} · LCS-Training</title>
+<link rel="icon" href="/static/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+{% set path = request.url.path %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="/"><img src="/static/logo.png" alt="LCS-Training"></a>
+    <nav class="nav">
+      {% for href, label in [("/", "Dashboard"), ("/leads", "Leads"), ("/quotes", "Quotes"), ("/contracts", "Contracts"),
+                             ("/deliveries", "Trainings & Audits"), ("/plans", "Consult Plans"), ("/coaches", "Coaches"),
+                             ("/clients", "Clients"), ("/contacts", "Contacts"), ("/prices", "Price List"),
+                             ("/import", "Import / Export"), ("/setup", "Setup")] %}
+        <a href="{{ href }}" class="{{ 'on' if (href == '/' and path == '/') or (href != '/' and path.startswith(href)) }}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <form class="year-form" method="post" action="/year" title="School year shown across the app">
+      <select name="school_year" onchange="this.form.submit()">
+        {% for y in years %}<option {{ 'selected' if y == school_year }}>{{ y }}</option>{% endfor %}
+        {% set nxt = (school_year[:4]|int + 1)|string + '-' + ((school_year[:4]|int + 2)|string)[2:] %}
+        {% if nxt not in years %}<option value="{{ nxt }}">{{ nxt }} (new)</option>{% endif %}
+      </select>
+    </form>
+  </div>
+</header>
+<main>
+  {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
+  {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Trainings & Audits{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Trainings, audits &amp; sessions</h1><p class="sub">The service delivery log for {{ school_year }}: replaces the Training Tracking and Audit Tracking tabs.</p></div>
+  <form class="row" method="get">
+    <select name="kind" onchange="this.form.submit()">{{ m.options(SERVICE_KINDS, kind, "All kinds") }}</select>
+    <select name="status" onchange="this.form.submit()">{{ m.options(DELIVERY_STATUSES, status, "All statuses") }}</select>
+    <select name="coach" onchange="this.form.submit()"><option value="">All coaches</option>{% for c in coaches %}<option value="{{ c.id }}" {{ 'selected' if coach == c.id|string }}>{{ c.coach_name }}</option>{% endfor %}</select>
+  </form>
+</div>
+<div class="card">
+  <form class="row" method="get" action="/deliveries/new">
+    <select name="contract" required><option value="">Choose a contract…</option>{% for c in contracts %}<option value="{{ c.id }}">{{ pname(c) }}</option>{% endfor %}</select>
+    <button class="btn primary">Log or schedule</button>
+  </form>
+</div>
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>Date</th><th>Client</th><th>Service</th><th>Subject</th><th>Audience / mode</th><th>Coach</th><th class="num">Hours</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for d in rows %}
+    <tr><td><a href="/deliveries/{{ d.id }}">{{ d.date_performed|fdate or 'no date' }}</a>{% if d.end_date %}<br><small>to {{ d.end_date|fdate }}</small>{% endif %}{% if d.time_text %}<br><small>{{ d.time_text }}</small>{% endif %}</td>
+      <td><a href="/contracts/{{ d.contract_id }}?tab=delivery">{{ pname(d.contract) }}</a></td>
+      <td>{{ d.contract_service.service_type.service_name if d.contract_service else '—' }}</td>
+      <td>{{ d.subject or '' }}</td><td><small>{{ d.audience or '' }}{% if d.mode %} · {{ d.mode }}{% endif %}</small></td>
+      <td>{{ d.coach.coach_name if d.coach else '' }}</td><td class="num">{{ d.duration|num }}</td><td>{{ m.badge(d.status) }}</td></tr>
+  {% else %}<tr><td colspan="8" class="muted">Nothing here.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

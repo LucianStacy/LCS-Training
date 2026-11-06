@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Consult Plans{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Consult plans {{ school_year }}</h1><p class="sub">Pre-Consult Meeting Set Up Sheets: planned sessions compared with contracted consult hours.</p></div>
+</div>
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>Client</th><th>Coach</th><th>Consult date</th><th>Status</th><th class="num">Contracted</th><th class="num">Planned</th><th class="num">Held</th><th class="num">Not yet planned</th><th></th></tr></thead>
+  <tbody>
+  {% for p in rows %}{% set h = hours[p.id] %}
+    <tr><td><a href="/plans/{{ p.id }}">{{ pname(p.contract) }}</a></td>
+      <td>{{ p.contract_service.assigned_coach.coach_name if p.contract_service and p.contract_service.assigned_coach else '' }}</td>
+      <td>{{ p.consult_date|fdate }}</td><td>{{ m.badge(p.status) }}</td>
+      <td class="num">{{ h.contracted|num }}</td><td class="num">{{ h.booked|num }}</td><td class="num">{{ h.held|num }}</td>
+      <td class="num" style="{{ 'color:#a3104c;font-weight:700' if h.unbooked < 0 }}">{{ h.unbooked|num }}</td>
+      <td style="min-width:90px">{{ m.bar(h.booked / h.contracted if h.contracted else none) }}</td></tr>
+  {% else %}<tr><td colspan="9" class="muted">No consult plans. Start one from a contract's Consult plans tab.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

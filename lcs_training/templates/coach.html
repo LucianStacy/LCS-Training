@@ -1,0 +1,56 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}{{ c.coach_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ c.coach_name }}</h1><p class="sub">{{ school_year }} capacity</p></div>
+</div>
+<div class="grid g4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Capacity (net)</div><div class="value purple">{{ row.annual_net|num }}</div><div class="hint">hours this school year</div></div>
+  <div class="stat"><div class="label">Workload</div><div class="value">{{ row.load|num }}</div><div class="hint">{{ row.committed|num }} committed · {{ row.delivered|num }} delivered</div></div>
+  <div class="stat"><div class="label">Headroom (year)</div><div class="value" style="{{ 'color:#a3104c' if row.headroom < 0 }}">{{ row.headroom|num }}</div></div>
+  <div class="stat"><div class="label">Headroom from today</div><div class="value" style="{{ 'color:#a3104c' if row.remaining_headroom < 0 }}">{{ row.remaining_headroom|num }}</div><div class="hint">{{ row.remaining_net|num }} hrs left vs {{ row.remaining_load|num }} still to deliver</div></div>
+</div>
+
+<div class="grid g2">
+  <div class="card">
+    <h2 style="margin-top:0">Monthly capacity vs delivered</h2>
+    {% set mx = [row.months|map(attribute='capacity')|max, row.months|map(attribute='delivered')|max, 1]|max %}
+    <div class="cap-month">{% for x in row.months %}<div style="height:{{ (x.net / mx * 100)|round }}%" title="{{ MONTH_NAMES[x.month] }}: {{ x.net|num }} available ({{ x.unavailable|num }} off), {{ x.delivered|num }} delivered"><span style="height:{{ ([x.delivered / x.net, 1]|min * 100)|round if x.net else 0 }}%"></span></div>{% endfor %}</div>
+    <div class="cap-labels">{% for x in row.months %}<span>{{ MONTH_NAMES[x.month][:3] }}</span>{% endfor %}</div>
+    <p class="muted">Light bars show capacity after time off; dark bars show delivered hours logged that month.</p>
+    <form method="post">
+      <table>
+        <thead><tr>{% for mth in SCHOOL_MONTHS %}<th class="num">{{ MONTH_NAMES[mth][:3] }}</th>{% endfor %}</tr></thead>
+        <tbody><tr>{% for mth in SCHOOL_MONTHS %}<td><input name="m{{ mth }}" value="{{ caps.get(mth, '')|num }}" style="width:3.2rem"></td>{% endfor %}</tr></tbody>
+      </table>
+      <div class="fields" style="margin-top:.6rem">
+        <div class="field"><label>Name</label><input class="wide" name="coach_name" value="{{ c.coach_name }}"></div>
+        <div class="field"><label>Email</label><input class="wide" name="email" value="{{ c.email or '' }}"></div>
+        <div class="field"><label>Specialties</label><input class="wide" name="specialties" value="{{ c.specialties or '' }}" placeholder="SEIS, CALPADS"></div>
+        <div class="field"><label>ERPNext Employee ID</label><input class="wide" name="employee" value="{{ c.employee or '' }}"></div>
+        <div class="field"><label>Working hours per day</label><input type="number" step="any" name="hours_per_day" value="{{ c.hours_per_day|num }}"></div>
+        <div class="field"><label>&nbsp;</label><label style="color:inherit"><input type="checkbox" name="active" {{ 'checked' if c.active }}> Active</label></div>
+      </div>
+      <div class="field"><label>Notes</label><textarea name="notes">{{ c.notes or '' }}</textarea></div>
+      <button class="btn primary">Save coach</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">Time off</h2>
+    <table><thead><tr><th>From</th><th>To</th><th>Type</th><th>Note</th><th></th></tr></thead>
+    <tbody>{% for u in c.unavailability %}<tr><td>{{ u.start_date|fdate }}</td><td>{{ u.end_date|fdate }}</td><td>{{ u.type }}</td><td>{{ u.note or '' }}</td>
+      <td><form method="post" action="/unavailability/{{ u.id }}/delete"><button class="btn link">remove</button></form></td></tr>
+    {% else %}<tr><td colspan="5" class="muted">None recorded.</td></tr>{% endfor %}</tbody></table>
+    <form class="row" method="post" action="/coaches/{{ c.id }}/unavailability" style="margin-top:.6rem">
+      <input type="date" name="start_date" required><input type="date" name="end_date"><select name="type">{{ m.options(UNAVAILABILITY_TYPES, 'Vacation') }}</select>
+      <input name="note" placeholder="Note"><button class="btn small">Add</button></form>
+    <p class="muted">Each working day off removes that day's share of the month's capacity.</p>
+
+    <h2>Assigned service lines</h2>
+    <table><thead><tr><th>Client</th><th>Service</th><th class="num">Committed</th><th class="num">Delivered</th></tr></thead>
+    <tbody>{% for x in row.lines|sort(attribute='load', reverse=True) %}<tr><td><a href="/contracts/{{ x.line.contract_id }}?tab=services">{{ pname(x.line.contract) }}</a></td>
+      <td>{{ x.line.service_type.service_name }} <small>× {{ x.line.contracted_quantity|num }}</small></td><td class="num">{{ x.committed|num }}</td><td class="num">{{ x.delivered|num }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Nothing assigned.</td></tr>{% endfor %}</tbody></table>
+  </div>
+</div>
+{% endblock %}

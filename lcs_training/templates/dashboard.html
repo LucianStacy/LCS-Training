@@ -1,0 +1,121 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Dashboard</h1><p class="sub">School year {{ school_year }} · {{ today|fdate("%A, %B %d, %Y") }}</p></div>
+</div>
+
+{% if empty %}
+<div class="card">
+  <h2>Getting started</h2>
+  <p>The app is empty. Load your existing data on the <a href="/import">Import / Export</a> page:</p>
+  <ol>
+    <li>Import the <b>Quote Pricing Worksheet</b> to build the price list for {{ school_year }}.</li>
+    <li>Import the <b>Client Spreadsheet - Contracts and Services</b> to bring in clients, contacts, leads, contracts,
+        onboarding, trainings, audits, coaches and invoice schedules.</li>
+  </ol>
+</div>
+{% endif %}
+
+{% if review_prices %}<div class="notice">Some {{ school_year }} prices are still marked <b>needs review</b>. Confirm them on the <a href="/prices">Price List</a> before sending quotes.</div>{% endif %}
+
+<div class="grid g4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Contract value</div><div class="value purple">{{ total_value|money(False) }}</div>
+    <div class="hint">{{ contracts|length }} contracts</div></div>
+  <div class="stat"><div class="label">Active</div><div class="value">{{ by_status['Active'] }}</div>
+    <div class="hint">{{ by_status['Pending Assignment'] }} pending coach · {{ by_status['Draft'] }} draft</div></div>
+  <div class="stat"><div class="label">Open onboarding tasks</div><div class="value">{{ open_task_count }}</div>
+    <div class="hint">across {{ tasks_by_contract|length }} contracts</div></div>
+  <div class="stat"><div class="label">Pipeline</div><div class="value">{{ open_quotes|length }}</div>
+    <div class="hint">open quotes · {{ leads['Open'] + leads['Quoted'] }} active leads</div></div>
+  <div class="stat"><div class="label">Consult hours not yet planned</div><div class="value">{{ unbooked|num }}</div>
+    <div class="hint">across {{ plans|length }} consult plans</div></div>
+</div>
+
+<div class="grid g2">
+  <div class="card">
+    <h2>Coach capacity {{ school_year }}</h2>
+    <table>
+      <thead><tr><th>Coach</th><th class="num">Capacity</th><th class="num">Workload</th><th class="num">Headroom</th><th>Load</th></tr></thead>
+      <tbody>
+      {% for r in coaches %}
+        <tr><td><a href="/coaches/{{ r.coach.id }}">{{ r.coach.coach_name }}</a></td>
+          <td class="num">{{ r.annual_net|num }}</td><td class="num">{{ r.load|num }}</td>
+          <td class="num" style="{{ 'color:#a3104c;font-weight:700' if r.headroom < 0 }}">{{ r.headroom|num }}</td>
+          <td style="width:30%">{{ m.bar(r.load / r.annual_net if r.annual_net else none) }}</td></tr>
+      {% else %}<tr><td colspan="5" class="muted">No coaches yet.</td></tr>{% endfor %}
+      {% if pooled %}<tr><td colspan="5" class="muted">{{ pooled|num }} committed hours on {{ pooled_lines|length }} service lines still need a coach.</td></tr>{% endif %}
+      </tbody>
+    </table>
+    <p class="muted" style="margin-bottom:0">Hours for the year. Workload = the larger of contracted and delivered hours on each service line, including prep time.</p>
+  </div>
+
+  <div class="card">
+    <h2>Invoices due in the next 45 days</h2>
+    <table>
+      <thead><tr><th>Due</th><th>Client</th><th class="num">Amount</th><th></th></tr></thead>
+      <tbody>
+      {% for i in due %}
+        <tr><td>{{ i.due_date|fdate }}{% if i.due_date < today %} <span class="badge risk">past due</span>{% endif %}</td>
+          <td><a href="/contracts/{{ i.contract_id }}?tab=billing">{{ pname(i.contract) }}</a></td>
+          <td class="num">{{ i.amount|money }}</td>
+          <td><a class="btn small" href="/installments/{{ i.id }}/invoice">Invoice sheet</a></td></tr>
+      {% else %}<tr><td colspan="4" class="muted">Nothing planned in the next 45 days.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Renewal risk</h2>
+    <table>
+      <thead><tr><th>Client</th><th>Delivered</th><th>Year elapsed</th><th>Flag</th></tr></thead>
+      <tbody>
+      {% for c, u in risks %}
+        <tr><td><a href="/contracts/{{ c.id }}?tab=services">{{ pname(c) }}</a></td>
+          <td>{{ u.pct|pct }}</td><td>{{ u.elapsed|pct }}</td><td><span class="badge risk">{{ u.risk }}</span></td></tr>
+      {% else %}<tr><td colspan="4" class="muted">No contracts flagged.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    <p class="muted" style="margin-bottom:0">"Behind" means consults and trainings are delivered at a slower pace than the contract year is passing (by 25 points or more). The renewal window opens 60 days before the contract ends.</p>
+  </div>
+
+  <div class="card">
+    <h2>Coming up (next 3 weeks)</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Client</th><th>What</th><th>Coach</th></tr></thead>
+      <tbody>
+      {% for d in upcoming %}
+        <tr><td>{{ d.date_performed|fdate }} <small>{{ d.time_text or '' }}</small></td>
+          <td><a href="/deliveries/{{ d.id }}">{{ pname(d.contract) }}</a></td>
+          <td>{{ d.contract_service.service_type.service_name if d.contract_service else '' }}{% if d.subject %}: {{ d.subject }}{% endif %}</td>
+          <td>{{ d.coach.coach_name if d.coach else '' }}</td></tr>
+      {% else %}<tr><td colspan="4" class="muted">Nothing scheduled.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Onboarding in progress</h2>
+    <table>
+      <thead><tr><th>Client</th><th>Status</th><th class="num">Open tasks</th></tr></thead>
+      <tbody>
+      {% for cid, n in tasks_by_contract.most_common(12) %}{% set c = contract_map[cid] %}
+        <tr><td><a href="/contracts/{{ cid }}?tab=onboarding">{{ pname(c) }}</a></td><td>{{ m.badge(c.status) }}</td><td class="num">{{ n }}</td></tr>
+      {% else %}<tr><td colspan="3" class="muted">No open onboarding tasks.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Open quotes</h2>
+    <table>
+      <thead><tr><th>Quote</th><th>Client</th><th>Status</th><th class="num">Total</th></tr></thead>
+      <tbody>
+      {% for q in open_quotes %}
+        <tr><td><a href="/quotes/{{ q.id }}">{{ q.quote_number }}</a></td><td>{{ pname(q) }}</td><td>{{ m.badge(q.status) }}</td><td class="num">{{ q.grand_total|money }}</td></tr>
+      {% else %}<tr><td colspan="4" class="muted">No open quotes.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

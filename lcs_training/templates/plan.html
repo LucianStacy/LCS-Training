@@ -1,0 +1,60 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Consult plan · {{ pname(p.contract) }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Pre-Consult Meeting Set Up Sheet</h1>
+    <p class="sub"><a href="/contracts/{{ p.contract_id }}?tab=plans">{{ pname(p.contract) }} {{ p.contract.school_year }}</a> · {{ m.badge(p.status) }}{% if p.plan_sent_date %} · sent {{ p.plan_sent_date|fdate }}{% endif %}</p></div>
+  <div class="row">
+    <a class="btn primary" href="/plans/{{ p.id }}/docx">Download Word document</a>
+    <form method="post" action="/plans/{{ p.id }}/sent"><button class="btn">Mark sent to client</button></form>
+  </div>
+</div>
+
+<div class="grid g4" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Hours in contract</div><div class="value purple">{{ h.contracted|num }}</div></div>
+  <div class="stat"><div class="label">Planned in sessions</div><div class="value">{{ h.booked|num }}</div>{{ m.bar(h.booked / h.contracted if h.contracted else none) }}</div>
+  <div class="stat"><div class="label">Held so far</div><div class="value">{{ h.held|num }}</div></div>
+  <div class="stat"><div class="label">{{ 'Over-planned by' if h.over else 'Not yet planned' }}</div><div class="value" style="{{ 'color:#a3104c' if h.over }}">{{ h.unbooked|abs|num }}</div></div>
+</div>
+
+<form method="post">
+<div class="card">
+  <div class="fields">
+    <div class="field"><label>Client</label><input class="wide" value="{{ pname(p.contract) }}" disabled></div>
+    <div class="field"><label>Consult date</label><input type="date" name="consult_date" value="{{ p.consult_date.isoformat() if p.consult_date else '' }}"></div>
+    <div class="field"><label>Consult-hours line</label><select class="wide" name="contract_service_id"><option value="">None</option>
+      {% for s in lines %}<option value="{{ s.id }}" {{ 'selected' if p.contract_service_id == s.id }}>{{ s.service_type.service_name }}: {{ s.contracted_quantity|num }} {{ s.service_type.delivery_unit }}s</option>{% endfor %}</select></div>
+    <div class="field"><label>Status</label><select class="wide" name="status">{{ m.options(['Draft', 'Sent', 'Active', 'Complete'], p.status) }}</select></div>
+  </div>
+  <div class="field"><label>Description of the structure of the sessions</label><textarea name="structure_description">{{ p.structure_description or '' }}</textarea></div>
+</div>
+<div class="card">
+  <h2 style="margin-top:0">Consult baseline, goals and objectives</h2>
+  <div class="field"><label>Baseline at the beginning of the consult program</label><textarea name="baseline">{{ p.baseline or '' }}</textarea></div>
+  <div class="field"><label>Goals for the consult program (what are we trying to achieve?)</label><textarea name="goals">{{ p.goals or '' }}</textarea></div>
+  <div class="field"><label>Objectives (what are the tangible ways to tell the goal has been met?)</label><textarea name="objectives">{{ p.objectives or '' }}</textarea></div>
+</div>
+<div class="card table-wrap">
+  <h2 style="margin-top:0">Session structure</h2>
+  <table>
+    <thead><tr><th>#</th><th>Hours</th><th>Virtual / in-person</th><th>Date</th><th>or approx.</th><th>Topic / focus</th><th>Delivered</th><th></th></tr></thead>
+    <tbody>
+    {% for s in p.sessions %}{% set k = 's' ~ s.id ~ '_' %}
+      <tr><td>{{ s.session_no }}</td>
+        <td><input type="number" step="any" class="short" name="{{ k }}duration" value="{{ s.duration|num }}"></td>
+        <td><select name="{{ k }}mode">{{ m.options(DELIVERY_MODES, s.mode, '') }}</select></td>
+        <td><input type="date" name="{{ k }}date" value="{{ s.session_date.isoformat() if s.session_date else '' }}"></td>
+        <td><input name="{{ k }}date_text" value="{{ s.date_text or '' }}" placeholder="e.g. early Oct" style="width:7rem"></td>
+        <td><input class="wide" name="{{ k }}topic" value="{{ s.topic or '' }}" style="min-width:14rem"></td>
+        <td>{% if s.delivery_log %}<a href="/deliveries/{{ s.delivery_log.id }}">{{ m.badge(s.delivery_log.status) }}</a>
+          {% else %}<button class="btn small" formaction="/plans/{{ p.id }}/sessions/{{ s.id }}/held" title="Save first if you changed this row">Mark held</button>{% endif %}</td>
+        <td>{% if not s.delivery_log %}<label style="color:inherit"><input type="checkbox" name="{{ k }}remove"> remove</label>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="8" class="muted">No sessions yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <p class="row"><span>Add</span><input type="number" name="add_rows" value="{{ 0 if p.sessions else 4 }}" min="0" class="short"><span>blank session rows</span><span class="spacer"></span>
+    <button class="btn primary">Save plan</button></p>
+  <p class="muted">"Mark held" logs the session in the delivery log against the consult-hours line, so the contract's delivered hours and the coach's capacity update.</p>
+</div>
+</form>
+{% endblock %}
