@@ -604,6 +604,50 @@ class ConsultSession(Base):
     delivery_log: Mapped[Optional[ServiceDeliveryLog]] = relationship()
 
 
+# ---------------------------------------------------------------------------
+# Users, sign-in sessions, change log  (app-only; ERPNext has its own users)
+# ---------------------------------------------------------------------------
+ROLES = {
+    "Admin": "Everything, including users, imports, the price list and setup.",
+    "Office Staff": "Day-to-day work: clients, leads, quotes, contracts, billing, delivery, coaches.",
+    "Coach": "Trainings, audits, consult plans, onboarding and their own time off. No dollar amounts.",
+    "Viewer": "Can see everything but change nothing.",
+}
+
+
+class User(Base):
+    __tablename__ = "app_user"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(120), unique=True)   # usually the work email
+    full_name: Mapped[str] = mapped_column(String(120))
+    role: Mapped[str] = mapped_column(String(20), default="Viewer")
+    password_hash: Mapped[str] = mapped_column(String(300))
+    coach_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lcs_coach.id"))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[dt.datetime] = mapped_column(default=dt.datetime.now)
+    last_login: Mapped[Optional[dt.datetime]] = mapped_column()
+    coach: Mapped[Optional[Coach]] = relationship()
+
+
+class UserSession(Base):
+    __tablename__ = "app_user_session"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)  # sha256 of the cookie value
+    user_id: Mapped[int] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"), index=True)
+    expires_at: Mapped[dt.datetime] = mapped_column()
+    created_at: Mapped[dt.datetime] = mapped_column(default=dt.datetime.now)
+
+
+class AuditLog(Base):
+    __tablename__ = "app_audit_log"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[dt.datetime] = mapped_column(default=dt.datetime.now, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(Integer)
+    user_name: Mapped[Optional[str]] = mapped_column(String(120))
+    action: Mapped[str] = mapped_column(String(300))
+    status: Mapped[int] = mapped_column(Integer)
+
+
 class Setting(Base):
     __tablename__ = "app_setting"
     key: Mapped[str] = mapped_column(String(80), primary_key=True)

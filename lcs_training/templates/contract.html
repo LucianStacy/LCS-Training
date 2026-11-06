@@ -5,19 +5,22 @@
   <div><h1>{{ party.name }}</h1>
     <p class="sub">{{ c.school_year }} contract · {{ m.badge(c.status) }} · {{ c.contract_start_date|fdate }} – {{ c.contract_end_date|fdate }}
       · <a href="{{ party_url(c.party_type, c.party_id) }}">client page</a>{% if quote %} · from quote <a href="/quotes/{{ quote.id }}">{{ quote.quote_number }}</a>{% endif %}</p></div>
-  <form class="row" method="post" action="/contracts/{{ c.id }}/status">
+  {% if can('edit_contracts') %}<form class="row" method="post" action="/contracts/{{ c.id }}/status">
     <label style="margin:0">Status</label><select name="status">{{ m.options(CONTRACT_STATUSES, c.status) }}</select><button class="btn">Set</button>
-  </form>
+  </form>{% endif %}
 </div>
 
 <div class="grid g4" style="margin-bottom:1rem">
+  {% if can('view_money') %}
   <div class="stat"><div class="label">Flat-rate value</div><div class="value purple">{{ c.total_contract_value|money }}</div><div class="hint">{{ c.billing_frequency }} billing</div></div>
   <div class="stat"><div class="label">Invoiced so far</div><div class="value">{{ billed|money(False) }}</div><div class="hint">{{ (c.total_contract_value - billed)|money(False) }} remaining</div></div>
+  {% endif %}
   <div class="stat"><div class="label">Delivered</div><div class="value">{{ util.pct|pct if util.pct is not none else '–' }}</div><div class="hint">{{ util.elapsed|pct }} of the year gone{% if util.risk %} · <span class="badge risk">{{ util.risk }}</span>{% endif %}</div></div>
   <div class="stat"><div class="label">Onboarding</div><div class="value">{% if checklist %}{{ checklist.tasks|selectattr('status','in',['Done','N/A'])|list|length }}/{{ checklist.tasks|length }}{% else %}–{% endif %}</div><div class="hint">{{ checklist.status if checklist else 'Starts when the contract leaves Draft' }}</div></div>
 </div>
 
-{% set tabs = [('overview','Overview'),('paperwork','Paperwork'),('services','Services & coaches'),('onboarding','Onboarding'),('delivery','Trainings & audits'),('plans','Consult plans'),('billing','Billing'),('amendments','Amendments')] %}
+{% set tabs = [('overview','Overview'),('paperwork','Paperwork'),('services','Services & coaches'),('onboarding','Onboarding'),('delivery','Trainings & audits'),('plans','Consult plans')] + ([('billing','Billing'),('amendments','Amendments')] if can('view_money') else []) %}
+{% if tab in ('billing', 'amendments') and not can('view_money') %}{% set tab = 'overview' %}{% endif %}
 <nav class="tabs">{% for k, label in tabs %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}">{{ label }}</a>{% endfor %}</nav>
 
 {% if tab == 'overview' %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Users</h1><p class="sub">Who can sign in, and what each person can do.</p></div></div>
+
+{% if new_pw %}
+<div class="card" id="new-password" style="border-color:var(--magenta)">
+  <h2 style="margin-top:0">Temporary password for {{ pw_for }}</h2>
+  <p style="font-family:Consolas,monospace;font-size:1.3rem;letter-spacing:.04em"><b>{{ new_pw }}</b></p>
+  <p>Give this to them in person or by phone, not by email. They'll be asked to choose their own password the first time they sign in. <b>It won't be shown again.</b></p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">Roles</h2>
+  <table><tbody>{% for r, d in roles.items() %}<tr><td style="width:10rem"><b>{{ r }}</b></td><td>{{ d }}</td></tr>{% endfor %}</tbody></table>
+</div>
+
+<div class="card table-wrap">
+  <h2 style="margin-top:0">People</h2>
+  <table>
+    <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Coach record</th><th>Active</th><th>Last sign-in</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}{% set f = 'u' ~ u.id %}
+      <tr>
+        <td><form id="{{ f }}" method="post" action="/users/{{ u.id }}"></form><input form="{{ f }}" name="full_name" value="{{ u.full_name }}">{% if u.id == user.id %} <small>(you)</small>{% endif %}
+          {% if u.must_change_password %}<br><span class="badge review">temporary password</span>{% endif %}</td>
+        <td>{{ u.username }}</td>
+        <td><select form="{{ f }}" name="role">{{ m.options(roles.keys()|list, u.role) }}</select></td>
+        <td><select form="{{ f }}" name="coach_id"><option value="">—</option>{% for c in coaches %}<option value="{{ c.id }}" {{ 'selected' if u.coach_id == c.id }}>{{ c.coach_name }}</option>{% endfor %}</select></td>
+        <td><input form="{{ f }}" type="checkbox" name="active" {{ 'checked' if u.active }}></td>
+        <td><small>{{ u.last_login.strftime('%m/%d/%Y %I:%M %p') if u.last_login else 'never' }}</small></td>
+        <td style="white-space:nowrap"><button form="{{ f }}" class="btn small">Save</button>
+          <form class="inline" method="post" action="/users/{{ u.id }}/reset" onsubmit="return confirm('Give {{ u.full_name|e }} a new temporary password? They will be signed out.')"><button class="btn small">Reset password</button></form></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">For the Coach role, pick their coach record, so they can manage their own time off. Changing someone's role or turning them off signs them out.</p>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Add a person</h2>
+  <form class="row" method="post" action="/users/new">
+    <input name="full_name" placeholder="Name" required>
+    <input name="username" placeholder="Username (work email)" required style="min-width:16rem">
+    <select name="role">{{ m.options(roles.keys()|list, 'Office Staff') }}</select>
+    <select name="coach_id"><option value="">Coach record (Coach role only)</option>{% for c in coaches %}<option value="{{ c.id }}">{{ c.coach_name }}</option>{% endfor %}</select>
+    <button class="btn primary">Add and create temporary password</button>
+  </form>
+</div>
+
+<details class="card">
+  <summary><b>Change log</b> <span class="muted">(last 200 changes, sign-ins and refusals)</span></summary>
+  <div class="table-wrap"><table style="margin-top:.5rem">
+    <thead><tr><th>When</th><th>Who</th><th>What</th><th>Result</th></tr></thead>
+    <tbody>{% for a in log %}<tr><td><small>{{ a.at.strftime('%m/%d/%Y %I:%M:%S %p') }}</small></td><td>{{ a.user_name or '—' }}</td><td><code>{{ a.action }}</code></td>
+      <td>{% if a.status >= 400 %}<span class="badge risk">{{ a.status }}</span>{% else %}<small>{{ a.status }}</small>{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</details>
+{% endblock %}

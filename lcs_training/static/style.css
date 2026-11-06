@@ -144,3 +144,14 @@ form.inline { display: inline; }
   main { padding: .75rem; }
   .g2, .g3 { grid-template-columns: 1fr; }
 }
+
+/* Sign-in & user menu */
+.auth-card { max-width: 420px; margin: 3rem auto; }
+.auth-mark { height: 64px; display: block; margin: 0 auto .5rem; }
+.auth-card h1 { text-align: center; }
+.wide-btn { width: 100%; padding: .6rem; font-size: .9rem; }
+.usermenu { position: relative; }
+.usermenu summary { cursor: pointer; list-style: none; font-family: Montserrat, sans-serif; font-weight: 600; font-size: .82rem; color: var(--charcoal); padding: .4rem .5rem; border-radius: 6px; }
+.usermenu summary::-webkit-details-marker { display: none; }
+.usermenu summary:hover { background: var(--purple-tint); }
+.usermenu-pop { position: absolute; right: 0; top: 100%; background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem .9rem; box-shadow: 0 6px 18px rgba(0,0,0,.08); z-index: 10; min-width: 11rem; display: grid; gap: .4rem; }

@@ -2,12 +2,12 @@
 {% block title %}Contracts{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Contracts {{ school_year }}</h1><p class="sub">{{ rows|length }} contracts · {{ rows|sum(attribute='total_contract_value')|money(False) }}</p></div>
+  <div><h1>Contracts {{ school_year }}</h1><p class="sub">{{ rows|length }} contracts{% if can('view_money') %} · {{ rows|sum(attribute='total_contract_value')|money(False) }}{% endif %}</p></div>
   <form class="row" method="get"><select name="status" onchange="this.form.submit()">{{ m.options(CONTRACT_STATUSES, status, "All statuses") }}</select></form>
 </div>
 <div class="card table-wrap">
 <table>
-  <thead><tr><th>Client</th><th>Status</th><th>Services</th><th>Coach(es)</th><th>Paperwork</th><th>Delivered</th><th class="num">Value</th><th></th></tr></thead>
+  <thead><tr><th>Client</th><th>Status</th><th>Services</th><th>Coach(es)</th><th>Paperwork</th><th>Delivered</th>{% if can('view_money') %}<th class="num">Value</th>{% endif %}<th></th></tr></thead>
   <tbody>
   {% for c in rows %}{% set u = util[c.id] %}
     <tr><td><a href="/contracts/{{ c.id }}">{{ pname(c) }}</a></td>
@@ -16,17 +16,17 @@
       <td><small>{{ c.current_services|selectattr('assigned_coach')|map(attribute='assigned_coach.coach_name')|unique|join(', ') }}</small></td>
       <td>{{ m.progress(c.paperwork) }}</td>
       <td style="min-width:110px">{% if u.pct is not none %}{{ m.bar(u.pct) }}<small>{{ u.pct|pct }}</small>{% endif %}</td>
-      <td class="num">{{ c.total_contract_value|money(False) }}</td>
+      {% if can('view_money') %}<td class="num">{{ c.total_contract_value|money(False) }}</td>{% endif %}
       <td>{% if u.risk %}<span class="badge risk">{{ u.risk }}</span>{% endif %}</td></tr>
   {% else %}<tr><td colspan="8" class="muted">No contracts for {{ school_year }}. Accept a quote, import the client spreadsheet, or add one below.</td></tr>{% endfor %}
   </tbody>
 </table>
 </div>
-<details class="card"><summary><b>Add a contract without a quote</b></summary>
+{% if can('edit_contracts') %}<details class="card"><summary><b>Add a contract without a quote</b></summary>
   <form class="row" method="post" action="/contracts/new" style="margin-top:.6rem">
     <select name="party" required>{{ m.party_options(parties) }}</select>
     <input name="value" type="number" step="any" placeholder="Flat-rate value">
     <button class="btn">Create draft contract</button>
   </form>
-</details>
+</details>{% endif %}
 {% endblock %}

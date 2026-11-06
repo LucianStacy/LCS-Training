@@ -14,8 +14,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import or_, select
 
-from . import docs, export, importer, logic
+from . import auth, docs, export, importer, logic
 from .config import APP_DIR, COMPANY, FOOTER_LINE, UPLOAD_DIR
+from .models import ROLES, AuditLog, User
 from .models import *  # noqa: F401,F403  (template globals need the vocabularies)
 from .models import (BILLING_FREQUENCIES, CLIENT_KINDS, CONTRACT_STATUSES, DELIVERY_MODES, DELIVERY_STATUSES,
                      INCOME_CATEGORIES, INSTALLMENT_STATUSES, LEAD_STATUSES, MONTH_NAMES, PARTY_DISTRICT,
@@ -30,6 +31,7 @@ from .seed import PAPERWORK_STEPS, seed_reference_data
 
 app = FastAPI(title="LCS-Training")
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
+app.include_router(__import__("lcs_training.accounts", fromlist=["router"]).router)
 templates = Jinja2Templates(directory=APP_DIR / "templates")
 
 
@@ -46,6 +48,49 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Access control: every request passes through here (policy lives in auth.RULES)
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def access_control(request: Request, call_next):
+    path = request.url.path
+    request.state.user = None
+    if auth.PUBLIC.match(path):
+        return await call_next(request)
+    with SessionLocal() as db:
+        if not db.scalar(select(User.id).limit(1)):
+            return RedirectResponse("/first-run", status_code=303)
+        user = auth.user_for_token(db, request.cookies.get(auth.COOKIE))
+        if user:
+            db.expunge(user)
+    if user is None:
+        nxt = path + (f"?{request.url.query}" if request.url.query else "")
+        return RedirectResponse(f"/login?next={quote_plus(nxt)}", status_code=303)
+    request.state.user = user
+    is_post = request.method not in ("GET", "HEAD", "OPTIONS")
+    if is_post and not auth.same_origin(request):
+        return _denied(request, user, "This form came from another website, so it was refused.")
+    if user.must_change_password and not auth.ANY_USER.match(path) and path != "/logout":
+        return RedirectResponse("/account?msg=" + quote_plus("Choose a new password to continue."), status_code=303)
+    if not auth.ANY_USER.match(path):
+        perm = auth.required_perm(request.method, path)
+        if not auth.has_perm(user, perm):
+            return _denied(request, user)
+    response = await call_next(request)
+    if is_post:
+        with SessionLocal() as db:
+            auth.log(db, user, f"{request.method} {path}", response.status_code)
+    return response
+
+
+def _denied(request, user, reason=None):
+    with SessionLocal() as db:
+        auth.log(db, user, f"DENIED {request.method} {request.url.path}", 403)
+    return templates.TemplateResponse(request, "denied.html", {
+        "request": request, "user": user, "reason": reason, "can": lambda p: auth.has_perm(user, p),
+        "years": [], "school_year": "", "msg": None, "err": None}, status_code=403)
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +142,8 @@ def render(request: Request, name: str, db, **ctx):
                    | {y for (y,) in db.execute(select(PriceItem.school_year).distinct())})
     ctx.update(request=request, msg=request.query_params.get("msg"), err=request.query_params.get("err"),
                school_year=current_year(db), years=years, today=logic.today(),
-               pname=lambda o: logic.party_name(db, o.party_type, o.party_id))
+               pname=lambda o: logic.party_name(db, o.party_type, o.party_id),
+               user=request.state.user, can=lambda p: auth.has_perm(request.state.user, p))
     return templates.TemplateResponse(request, name, ctx)
 
 
@@ -155,8 +201,9 @@ def save_steps(form, steps, prefix="step"):
             s.step_date = logic.today()
 
 
-def user_name(db):
-    return logic.get_setting(db, "user_name") or "LCS-Training staff"
+def user_name(request):
+    u = request.state.user
+    return u.full_name if u else "LCS-Training staff"
 
 
 # ---------------------------------------------------------------------------
@@ -641,7 +688,7 @@ async def quote_status(request: Request, qid: int, db=Depends(get_db)):
         if q.status == "Accepted":
             return go(f"/quotes/{qid}", err="Already accepted.")
         logic.compute_quote(db, q)
-        c = logic.accept_quote(db, q, user_name(db))
+        c = logic.accept_quote(db, q, user_name(request))
         db.commit()
         if q.is_amendment:
             return go(f"/contracts/{c.id}?tab=amendments", f"Amendment quote applied to the contract; billing was reset.")
@@ -814,7 +861,7 @@ async def service_add(request: Request, cid: int, db=Depends(get_db)):
     msg = "Service line added."
     if c.status != "Draft":
         c.amendments.append(logic.ContractAmendment(
-            amendment_date=eff, changed_by=user_name(db), reason=fs(form, "reason"),
+            amendment_date=eff, changed_by=user_name(request), reason=fs(form, "reason"),
             description=f"Added {stype.service_name} x{qty:g}"))
         msg += " Logged as an amendment."
         if logic.checklist_for(db, c):
@@ -850,7 +897,7 @@ async def service_amend(request: Request, sid: int, db=Depends(get_db)):
         ln.contracted_quantity = new_qty
         msg = "Quantity updated (draft contract, so no amendment was logged)."
     else:
-        logic.amend_service_quantity(db, ln, new_qty, fd(form, "when") or logic.today(), user_name(db),
+        logic.amend_service_quantity(db, ln, new_qty, fd(form, "when") or logic.today(), user_name(request),
                                      fs(form, "reason"))
         msg = "Amendment logged: the old line was closed and a new one starts today."
     db.commit()
@@ -864,7 +911,7 @@ async def contract_value(request: Request, cid: int, db=Depends(get_db)):
     new_total = ff(form, "new_total")
     if new_total is None:
         return go(f"/contracts/{cid}?tab=amendments", err="Enter the new contract value.")
-    logic.apply_value_change(db, c, new_total, form.get("category") or "other", user_name(db), fs(form, "reason"),
+    logic.apply_value_change(db, c, new_total, form.get("category") or "other", user_name(request), fs(form, "reason"),
                              fs(form, "description"), fd(form, "when") or logic.today())
     db.commit()
     return go(f"/contracts/{cid}?tab=billing", "Value changed, amendment logged, and remaining installments reset.")
@@ -1186,9 +1233,16 @@ async def coach_save(request: Request, cid: int, db=Depends(get_db)):
     return go(f"/coaches/{cid}", "Coach saved.")
 
 
+def _may_edit_timeoff(request, coach_id) -> bool:
+    u = request.state.user
+    return u.role != "Coach" or u.coach_id == coach_id
+
+
 @app.post("/coaches/{cid}/unavailability")
 async def coach_unavailable(request: Request, cid: int, db=Depends(get_db)):
     c = get_or_404(db, Coach, cid)
+    if not _may_edit_timeoff(request, c.id):
+        return go(f"/coaches/{cid}", err="Coaches can only change their own time off.")
     form = await request.form()
     s, e = fd(form, "start_date"), fd(form, "end_date")
     if not s:
@@ -1200,9 +1254,11 @@ async def coach_unavailable(request: Request, cid: int, db=Depends(get_db)):
 
 
 @app.post("/unavailability/{uid}/delete")
-def unavailability_delete(uid: int, db=Depends(get_db)):
+def unavailability_delete(request: Request, uid: int, db=Depends(get_db)):
     u = get_or_404(db, CoachUnavailability, uid)
     cid = u.coach_id
+    if not _may_edit_timeoff(request, cid):
+        return go(f"/coaches/{cid}", err="Coaches can only change their own time off.")
     db.delete(u)
     db.commit()
     return go(f"/coaches/{cid}", "Time off removed.")
@@ -1215,8 +1271,7 @@ def unavailability_delete(uid: int, db=Depends(get_db)):
 def setup(request: Request, db=Depends(get_db)):
     return render(request, "setup.html", db,
                   service_types=list(db.scalars(select(ServiceType).order_by(ServiceType.sort_order))),
-                  templates_=list(db.scalars(select(TaskTemplate).order_by(TaskTemplate.sort_order))),
-                  user=logic.get_setting(db, "user_name"))
+                  templates_=list(db.scalars(select(TaskTemplate).order_by(TaskTemplate.sort_order))))
 
 
 @app.post("/setup/services")
@@ -1268,14 +1323,6 @@ async def setup_template_new(request: Request, db=Depends(get_db)):
         db.commit()
         return go(f"/setup#t{t.id}", "Template added.")
     return go("/setup", err="Enter a title.")
-
-
-@app.post("/setup/user")
-async def setup_user(request: Request, db=Depends(get_db)):
-    form = await request.form()
-    logic.set_setting(db, "user_name", fs(form, "user_name") or "")
-    db.commit()
-    return go("/setup", "Saved.")
 
 
 # ---------------------------------------------------------------------------

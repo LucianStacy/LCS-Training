@@ -33,6 +33,30 @@ python -m lcs_training
 
 The data is saved in `data/lcs_training.db`.
 
+## Sign-in and roles
+
+The first time you open the app it asks you to create the **administrator** account. Add everyone else under **Users**. Each new person gets a one-time temporary password and must choose their own the first time they sign in.
+
+| Role | Can do |
+|---|---|
+| **Admin** | Everything, including users, imports, the price list and setup |
+| **Office Staff** | Day-to-day work: clients, contacts, leads, quotes, contracts, billing, delivery, coaches. Not the price list, imports or users |
+| **Coach** | Trainings, audits, consult plans, onboarding checklists and their **own** time off. Dollar amounts, quotes and billing are hidden |
+| **Viewer** | Can see everything, change nothing |
+
+- Passwords are stored only as salted PBKDF2 hashes. Sessions last 12 hours of activity.
+- Five wrong passwords lock that username for 5 minutes.
+- The Users page shows a change log: who changed what, plus sign-ins and refused attempts. Contract amendments record the signed-in person's name.
+- The whole access policy is in one table, `RULES` in [lcs_training/auth.py](lcs_training/auth.py).
+
+**Locked out?** Give any account a new temporary password from the command line:
+
+```bash
+docker compose exec lcs-training python -m lcs_training reset-password you@example.org
+```
+
+Without Docker, run `python -m lcs_training reset-password you@example.org`. To list the accounts, use `list-users`.
+
 ## First steps
 
 1. **Import / Export → Price list**: upload a Quote Pricing Worksheet (.xlsx). Every price is marked *needs review* until you confirm it for the year.
@@ -80,5 +104,5 @@ The data is saved in `data/lcs_training.db`.
 ## Notes
 
 - **Repository privacy:** this repository is public. `.gitignore` keeps the database, uploads and every spreadsheet/Word/CSV/zip file out of git, so client data stays on this computer.
-- **No logins yet:** the app has no login screen. Docker publishes it on `127.0.0.1` only, so only this computer can reach it.
+- **Sharing on your network:** Docker publishes the app on `127.0.0.1` only. To let coaches reach it from other computers, change the port line in `docker-compose.yml` to `"8765:8765"`. Do that only on a trusted network, and put it behind HTTPS (a reverse proxy) before it's reachable from the internet.
 - **Branding:** it follows the LCS-Training Brand Style Guide: LCS Purple `#74439A`, Magenta `#E9166E` for primary buttons, Montserrat headings, Calibri body text.

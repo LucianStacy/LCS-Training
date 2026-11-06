@@ -5,8 +5,8 @@ services:
     container_name: lcs-training
     restart: unless-stopped
     ports:
-      # Only reachable from this computer. Change to "8765:8765" to share on your network
-      # (the app has no logins yet, so only do that on a trusted network).
+      # Only reachable from this computer. Change to "8765:8765" to share it with others on a
+      # trusted network (everyone signs in). Put HTTPS in front before exposing it to the internet.
       - "127.0.0.1:8765:8765"
     volumes:
       - lcs-data:/data

@@ -4,10 +4,10 @@
 <div class="page-head">
   <div><h1>{{ p.name }}</h1>
     <p class="sub">{{ 'SELPA' if kind == 'selpa' else p.client_kind }}{% if kind == 'district' and p.selpa %} · member of <a href="{{ party_url(PARTY_SELPA, p.selpa.id) }}">{{ p.selpa.selpa_name }}</a>{% endif %}</p></div>
-  <div class="row">
+  {% if can('edit_sales') %}<div class="row">
     <form method="post" action="/quotes/new"><input type="hidden" name="party" value="{{ p.party_type }}:{{ p.id }}"><button class="btn primary">New quote</button></form>
     <form method="post" action="/leads/new"><input type="hidden" name="party" value="{{ p.party_type }}:{{ p.id }}"><button class="btn">New lead</button></form>
-  </div>
+  </div>{% endif %}
 </div>
 
 <div class="grid g2">
@@ -38,6 +38,7 @@
   </div>
 
   <div class="card">
+    {% if can('view_sales') %}
     <h2>Quote history</h2>
     <div class="grid g3" style="margin-bottom:.75rem">
       <div class="stat"><div class="label">Quotes</div><div class="value">{{ stats.count }}</div><div class="hint">{{ stats.amendments }} amendments · {{ stats.won }} won</div></div>
@@ -52,15 +53,16 @@
     {% for l in leads %}{% if l.legacy_quote_count %}
       <p class="muted">From the {{ l.school_year }} spreadsheet: {{ l.legacy_quote_count }} quote(s), {{ l.legacy_amendment_count or 0 }} amendment(s), {{ l.legacy_total_quoted|money(False) }} quoted, {{ l.legacy_accepted_amount|money(False) }} accepted.</p>
     {% endif %}{% endfor %}
+    {% endif %}
 
     <h2>Contracts</h2>
     <table>
-      <thead><tr><th>Year</th><th>Status</th><th class="num">Value</th></tr></thead>
-      <tbody>{% for c in contracts %}<tr><td><a href="/contracts/{{ c.id }}">{{ c.school_year }}</a></td><td>{{ m.badge(c.status) }}</td><td class="num">{{ c.total_contract_value|money }}</td></tr>
+      <thead><tr><th>Year</th><th>Status</th>{% if can('view_money') %}<th class="num">Value</th>{% endif %}</tr></thead>
+      <tbody>{% for c in contracts %}<tr><td><a href="/contracts/{{ c.id }}">{{ c.school_year }}</a></td><td>{{ m.badge(c.status) }}</td>{% if can('view_money') %}<td class="num">{{ c.total_contract_value|money }}</td>{% endif %}</tr>
       {% else %}<tr><td colspan="3" class="muted">No contracts.</td></tr>{% endfor %}</tbody>
     </table>
-    <h2>Leads</h2>
-    <ul>{% for l in leads %}<li><a href="/leads/{{ l.id }}">{{ l.school_year }} lead</a> {{ m.badge(l.status) }}</li>{% else %}<li class="muted">None</li>{% endfor %}</ul>
+    {% if can('view_sales') %}<h2>Leads</h2>
+    <ul>{% for l in leads %}<li><a href="/leads/{{ l.id }}">{{ l.school_year }} lead</a> {{ m.badge(l.status) }}</li>{% else %}<li class="muted">None</li>{% endfor %}</ul>{% endif %}
   </div>
 </div>
 
@@ -69,12 +71,12 @@
   {% include "_contact_table.html" %}
 </div>
 
-<details class="card">
+{% if can('edit_crm') %}<details class="card">
   <summary><b>Merge into another client</b> <span class="muted">(for duplicates created by an import)</span></summary>
   <p>Moves every contact, quote, lead and contract from <b>{{ p.name }}</b> to the client you pick, keeps "{{ p.name }}" as one of its other names, then deletes this record.</p>
   <form method="post" action="{{ party_url(p.party_type, p.id) }}/merge" class="row" onsubmit="return confirm('Merge {{ p.name|e }} into the selected client? This cannot be undone.')">
     <select name="target" required>{{ m.party_options(others) }}</select>
     <button class="btn danger">Merge</button>
   </form>
-</details>
+</details>{% endif %}
 {% endblock %}

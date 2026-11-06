@@ -14,14 +14,18 @@
 <header class="topbar">
   <div class="topbar-inner">
     <a href="/"><img src="/static/logo.png" alt="LCS-Training"></a>
+    {% if user %}
     <nav class="nav">
-      {% for href, label in [("/", "Dashboard"), ("/leads", "Leads"), ("/quotes", "Quotes"), ("/contracts", "Contracts"),
-                             ("/deliveries", "Trainings & Audits"), ("/plans", "Consult Plans"), ("/coaches", "Coaches"),
-                             ("/clients", "Clients"), ("/contacts", "Contacts"), ("/prices", "Price List"),
-                             ("/import", "Import / Export"), ("/setup", "Setup")] %}
-        <a href="{{ href }}" class="{{ 'on' if (href == '/' and path == '/') or (href != '/' and path.startswith(href)) }}">{{ label }}</a>
+      {% for href, label, perm in [("/", "Dashboard", "view"), ("/leads", "Leads", "view_sales"), ("/quotes", "Quotes", "view_sales"),
+                                   ("/contracts", "Contracts", "view_ops"), ("/deliveries", "Trainings & Audits", "view_ops"),
+                                   ("/plans", "Consult Plans", "view_ops"), ("/coaches", "Coaches", "view_ops"),
+                                   ("/clients", "Clients", "view_ops"), ("/contacts", "Contacts", "view_ops"),
+                                   ("/prices", "Price List", "view_sales"), ("/import", "Import / Export", "admin"),
+                                   ("/setup", "Setup", "admin"), ("/users", "Users", "admin")] %}
+        {% if can(perm) %}<a href="{{ href }}" class="{{ 'on' if (href == '/' and path == '/') or (href != '/' and path.startswith(href)) }}">{{ label }}</a>{% endif %}
       {% endfor %}
     </nav>
+    {% if years %}
     <form class="year-form" method="post" action="/year" title="School year shown across the app">
       <select name="school_year" onchange="this.form.submit()">
         {% for y in years %}<option {{ 'selected' if y == school_year }}>{{ y }}</option>{% endfor %}
@@ -29,6 +33,15 @@
         {% if nxt not in years %}<option value="{{ nxt }}">{{ nxt }} (new)</option>{% endif %}
       </select>
     </form>
+    {% endif %}
+    <details class="usermenu">
+      <summary title="Signed in as {{ user.username }}">{{ user.full_name }} <span class="badge">{{ user.role }}</span></summary>
+      <div class="usermenu-pop">
+        <a href="/account">Change password</a>
+        <form method="post" action="/logout"><button class="btn link">Sign out</button></form>
+      </div>
+    </details>
+    {% endif %}
   </div>
 </header>
 <main>

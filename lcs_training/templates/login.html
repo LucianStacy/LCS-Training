@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div class="auth-card card">
+  <img src="/static/mark.png" alt="" class="auth-mark">
+  <h1>Sign in</h1>
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{{ next or '/' }}">
+    <div class="field"><label for="u">Username</label><input class="wide" id="u" name="username" value="{{ username or '' }}" autocomplete="username" autofocus required></div>
+    <div class="field"><label for="p">Password</label><input class="wide" id="p" type="password" name="password" autocomplete="current-password" required></div>
+    <button class="btn primary wide-btn">Sign in</button>
+  </form>
+  <p class="muted" style="margin-bottom:0">Forgot your password? Ask an administrator to reset it from the Users page.</p>
+</div>
+{% endblock %}

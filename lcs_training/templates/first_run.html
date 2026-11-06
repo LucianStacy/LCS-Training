@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Create the administrator{% endblock %}
+{% block content %}
+<div class="auth-card card">
+  <img src="/static/mark.png" alt="" class="auth-mark">
+  <h1>Welcome to LCS-Training</h1>
+  <p>Nobody has an account yet. Create the <b>administrator</b> account first. After that you can add Office Staff, Coach and Viewer accounts from the Users page.</p>
+  <form method="post" action="/first-run">
+    <div class="field"><label for="n">Your name</label><input class="wide" id="n" name="full_name" value="{{ full_name or '' }}" autocomplete="name" required></div>
+    <div class="field"><label for="u">Username (your work email is easiest)</label><input class="wide" id="u" name="username" value="{{ username or '' }}" autocomplete="username" required></div>
+    <div class="field"><label for="p">Password (at least 10 characters)</label><input class="wide" id="p" type="password" name="password" autocomplete="new-password" minlength="10" required></div>
+    <div class="field"><label for="p2">Password again</label><input class="wide" id="p2" type="password" name="password2" autocomplete="new-password" minlength="10" required></div>
+    <button class="btn primary wide-btn">Create administrator</button>
+  </form>
+</div>
+{% endblock %}

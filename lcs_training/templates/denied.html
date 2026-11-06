@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Not allowed{% endblock %}
+{% block content %}
+<div class="card" style="max-width:620px">
+  <h1>That isn't available to you</h1>
+  <p>{{ reason or ("Your role (" ~ user.role ~ ") can't open this page or make this change.") }}</p>
+  <p>If you need it, ask an administrator to change your role on the Users page.</p>
+  <p class="row"><a class="btn" href="javascript:history.back()">Go back</a><a class="btn" href="/">Dashboard</a></p>
+</div>
+{% endblock %}

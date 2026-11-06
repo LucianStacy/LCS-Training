@@ -5,7 +5,7 @@
   <div><h1>Dashboard</h1><p class="sub">School year {{ school_year }} · {{ today|fdate("%A, %B %d, %Y") }}</p></div>
 </div>
 
-{% if empty %}
+{% if empty and can('admin') %}
 <div class="card">
   <h2>Getting started</h2>
   <p>The app is empty. Load your existing data on the <a href="/import">Import / Export</a> page:</p>
@@ -17,17 +17,17 @@
 </div>
 {% endif %}
 
-{% if review_prices %}<div class="notice">Some {{ school_year }} prices are still marked <b>needs review</b>. Confirm them on the <a href="/prices">Price List</a> before sending quotes.</div>{% endif %}
+{% if review_prices and can('view_sales') %}<div class="notice">Some {{ school_year }} prices are still marked <b>needs review</b>. Confirm them on the <a href="/prices">Price List</a> before sending quotes.</div>{% endif %}
 
 <div class="grid g4" style="margin-bottom:1rem">
-  <div class="stat"><div class="label">Contract value</div><div class="value purple">{{ total_value|money(False) }}</div>
-    <div class="hint">{{ contracts|length }} contracts</div></div>
+  {% if can('view_money') %}<div class="stat"><div class="label">Contract value</div><div class="value purple">{{ total_value|money(False) }}</div>
+    <div class="hint">{{ contracts|length }} contracts</div></div>{% endif %}
   <div class="stat"><div class="label">Active</div><div class="value">{{ by_status['Active'] }}</div>
     <div class="hint">{{ by_status['Pending Assignment'] }} pending coach · {{ by_status['Draft'] }} draft</div></div>
   <div class="stat"><div class="label">Open onboarding tasks</div><div class="value">{{ open_task_count }}</div>
     <div class="hint">across {{ tasks_by_contract|length }} contracts</div></div>
-  <div class="stat"><div class="label">Pipeline</div><div class="value">{{ open_quotes|length }}</div>
-    <div class="hint">open quotes · {{ leads['Open'] + leads['Quoted'] }} active leads</div></div>
+  {% if can('view_sales') %}<div class="stat"><div class="label">Pipeline</div><div class="value">{{ open_quotes|length }}</div>
+    <div class="hint">open quotes · {{ leads['Open'] + leads['Quoted'] }} active leads</div></div>{% endif %}
   <div class="stat"><div class="label">Consult hours not yet planned</div><div class="value">{{ unbooked|num }}</div>
     <div class="hint">across {{ plans|length }} consult plans</div></div>
 </div>
@@ -50,7 +50,7 @@
     <p class="muted" style="margin-bottom:0">Hours for the year. Workload = the larger of contracted and delivered hours on each service line, including prep time.</p>
   </div>
 
-  <div class="card">
+  {% if can('view_money') %}<div class="card">
     <h2>Invoices due in the next 45 days</h2>
     <table>
       <thead><tr><th>Due</th><th>Client</th><th class="num">Amount</th><th></th></tr></thead>
@@ -63,7 +63,7 @@
       {% else %}<tr><td colspan="4" class="muted">Nothing planned in the next 45 days.</td></tr>{% endfor %}
       </tbody>
     </table>
-  </div>
+  </div>{% endif %}
 
   <div class="card">
     <h2>Renewal risk</h2>
@@ -106,7 +106,7 @@
     </table>
   </div>
 
-  <div class="card">
+  {% if can('view_sales') %}<div class="card">
     <h2>Open quotes</h2>
     <table>
       <thead><tr><th>Quote</th><th>Client</th><th>Status</th><th class="num">Total</th></tr></thead>
@@ -116,6 +116,6 @@
       {% else %}<tr><td colspan="4" class="muted">No open quotes.</td></tr>{% endfor %}
       </tbody>
     </table>
-  </div>
+  </div>{% endif %}
 </div>
 {% endblock %}

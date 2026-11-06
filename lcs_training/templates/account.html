@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Your account{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Your account</h1><p class="sub">{{ user.full_name }} · {{ user.username }} · {{ user.role }}</p></div></div>
+{% if user.must_change_password %}<div class="notice">You're using a temporary password. Choose your own to continue.</div>{% endif %}
+<div class="card" style="max-width:520px">
+  <h2 style="margin-top:0">Change password</h2>
+  <form method="post" action="/account">
+    <div class="field"><label for="c">Current password</label><input class="wide" id="c" type="password" name="current" autocomplete="current-password" required></div>
+    <div class="field"><label for="p">New password (at least 10 characters)</label><input class="wide" id="p" type="password" name="password" autocomplete="new-password" minlength="10" required></div>
+    <div class="field"><label for="p2">New password again</label><input class="wide" id="p2" type="password" name="password2" autocomplete="new-password" minlength="10" required></div>
+    <button class="btn primary">Change password</button>
+  </form>
+  <p class="muted" style="margin-bottom:0">Changing your password signs you out on every other computer or browser.</p>
+</div>
+{% endblock %}
