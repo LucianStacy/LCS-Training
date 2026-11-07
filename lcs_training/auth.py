@@ -147,9 +147,9 @@ ROLE_PERMS = {
     "Admin": {"*"},
     "Office Staff": {"view", "view_ops", "view_sales", "view_money", "export", "edit_crm", "edit_sales",
                      "edit_contracts", "edit_billing", "edit_onboarding", "edit_delivery", "edit_plans",
-                     "edit_coaches", "edit_timeoff"},
+                     "edit_coaches", "edit_timeoff", "triage", "email", "view_email"},
     "Coach": {"view", "view_ops", "edit_onboarding", "edit_delivery", "edit_plans", "edit_timeoff"},
-    "Viewer": {"view", "view_ops", "view_sales", "view_money"},
+    "Viewer": {"view", "view_ops", "view_sales", "view_money", "view_email"},
 }
 
 PUBLIC = re.compile(r"^/(static/|login$|logout$|first-run$|favicon)")
@@ -158,6 +158,14 @@ ANY_USER = re.compile(r"^/(account(/.*)?|year)$")
 # (method, path pattern, permission) - first match wins; no match = Admin only.
 RULES = [
     ("GET", r"^/$", "view"),
+    ("GET", r"^/attention$", "view"),
+    ("POST", r"^/attention/(dismiss|restore)$", "triage"),
+    ("GET", r"^/reports/(revenue-month|revenue-client|receivables)$", "view_money"),
+    ("GET", r"^/reports/(renewals|pipeline)$", "view_sales"),
+    ("GET", r"^/reports(/[a-z-]+)?$", "view_ops"),
+    # email: settings and templates are Admin-only (no rule); the outbox is for office staff
+    ("GET", r"^/emails(/\d+)?$", "view_email"),
+    ("POST", r"^/emails/(new|check|send-selected|\d+)$", "email"),
     ("GET", r"^/(leads|quotes|prices)(/|$)", "view_sales"),
     ("GET", r"^/installments/\d+/invoice$", "view_money"),
     ("GET", r"^/export/", "export"),
@@ -166,7 +174,7 @@ RULES = [
     ("POST", r"^/(leads|quotes)(/|$)", "edit_sales"),
     ("POST", r"^/contracts/\d+/onboarding(/generate)?$", "edit_onboarding"),
     ("POST", r"^/contracts/\d+/plans/new$", "edit_plans"),
-    ("POST", r"^/contracts/\d+/(billing-settings|billing/.*|value)$", "edit_billing"),
+    ("POST", r"^/contracts/\d+/(billing-settings|billing/.*|value|categories)$", "edit_billing"),
     ("POST", r"^/installments/\d+$", "edit_billing"),
     ("POST", r"^/(contracts|services)(/|$)", "edit_contracts"),
     ("POST", r"^/deliveries/", "edit_delivery"),

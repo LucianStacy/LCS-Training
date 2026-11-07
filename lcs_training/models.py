@@ -145,6 +145,7 @@ class Contact(Base):
     party_type: Mapped[Optional[str]] = mapped_column(String(20))
     party_id: Mapped[Optional[int]] = mapped_column(Integer)
     notes: Mapped[Optional[str]] = mapped_column(Text)
+    no_email: Mapped[bool] = mapped_column(Boolean, default=False)  # asked not to get reminder emails
     tags: Mapped[list["ContactTagItem"]] = relationship(back_populates="contact", cascade="all, delete-orphan")
 
     @property
@@ -648,6 +649,61 @@ class AuditLog(Base):
     status: Mapped[int] = mapped_column(Integer)
 
 
+class AttentionDismissal(Base):
+    """An item on the Needs attention page someone checked and marked as fine."""
+    __tablename__ = "app_attention_dismissal"
+    key: Mapped[str] = mapped_column(String(200), primary_key=True)
+    dismissed_by: Mapped[Optional[str]] = mapped_column(String(120))
+    dismissed_at: Mapped[dt.datetime] = mapped_column(default=dt.datetime.now)
+    note: Mapped[Optional[str]] = mapped_column(String(300))
+
+
+# ---------------------------------------------------------------------------
+# Customer email  (ERPNext: Email Template + Communication)
+# ---------------------------------------------------------------------------
+EMAIL_STATUSES = ["Draft", "Sent", "Failed", "Discarded"]
+
+
+class EmailTemplate(Base):
+    __tablename__ = "lcs_email_template"
+    __doctype__ = "Email Template"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(40), unique=True)
+    name: Mapped[str] = mapped_column(String(120))
+    subject: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(Text)
+    days: Mapped[Optional[int]] = mapped_column(Integer)          # trigger offset (days before/after)
+    auto_draft: Mapped[bool] = mapped_column(Boolean, default=True)   # create drafts automatically
+    auto_send: Mapped[bool] = mapped_column(Boolean, default=False)   # send without review
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class EmailMessage(Base):
+    __tablename__ = "lcs_email_message"
+    __doctype__ = "Communication"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[dt.datetime] = mapped_column(default=dt.datetime.now, index=True)
+    template_key: Mapped[Optional[str]] = mapped_column(String(40))
+    dedupe_key: Mapped[Optional[str]] = mapped_column(String(120), unique=True)  # one reminder per event
+    party_type: Mapped[Optional[str]] = mapped_column(String(20))
+    party_id: Mapped[Optional[int]] = mapped_column(Integer)
+    contract_id: Mapped[Optional[int]] = mapped_column(Integer)
+    quote_id: Mapped[Optional[int]] = mapped_column(Integer)
+    installment_id: Mapped[Optional[int]] = mapped_column(Integer)
+    delivery_id: Mapped[Optional[int]] = mapped_column(Integer)
+    plan_id: Mapped[Optional[int]] = mapped_column(Integer)
+    to_addrs: Mapped[Optional[str]] = mapped_column(String(600))
+    cc_addrs: Mapped[Optional[str]] = mapped_column(String(600))
+    subject: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(Text)
+    attach: Mapped[Optional[str]] = mapped_column(String(40))   # "plan_docx" | "quote_html" | "invoice_html"
+    status: Mapped[str] = mapped_column(String(20), default="Draft")
+    sent_at: Mapped[Optional[dt.datetime]] = mapped_column()
+    sent_by: Mapped[Optional[str]] = mapped_column(String(120))
+    sent_to: Mapped[Optional[str]] = mapped_column(String(600))   # where it really went (test mode)
+    error: Mapped[Optional[str]] = mapped_column(Text)
+
+
 class Setting(Base):
     __tablename__ = "app_setting"
     key: Mapped[str] = mapped_column(String(80), primary_key=True)
@@ -669,5 +725,26 @@ def _sqlite_pragmas(dbapi_conn, _):
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
 
+def _add_missing_columns() -> None:
+    """create_all() makes new tables but never new columns; add those to existing databases."""
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            have = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in have:
+                    continue
+                ddl = col.type.compile(dialect=engine.dialect)
+                default = col.default.arg if col.default is not None and not callable(col.default.arg) else None
+                if isinstance(default, bool):
+                    default = int(default)
+                tail = f" DEFAULT {default!r}" if default is not None else ""
+                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {ddl}{tail}'))
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
+    _add_missing_columns()

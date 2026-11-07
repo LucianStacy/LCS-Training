@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ r.title }}{% endblock %}
+{% macro cell(v, fmt) -%}
+  {%- if v is none -%}{%- elif v is string -%}{{ v }}{%- elif fmt == 'money' -%}{{ v|money }}{%- elif fmt == 'pct' -%}{{ v|pct }}{%- elif fmt == 'date' -%}{{ v|fdate }}{%- elif fmt == 'num' -%}{{ v|num }}{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ res.title }}</h1><p class="sub"><a href="/reports">Reports</a>{% if res.subtitle %} · {{ res.subtitle }}{% endif %}</p></div>
+  <div class="row">
+    {% if r.params %}
+    <form class="row" method="get">
+      {% for name, label, kind, default in r.params %}
+        <label style="margin:0">{{ label }}
+        {% if kind.startswith('select:') %}<select name="{{ name }}" onchange="this.form.submit()">{% for o in kind[7:].split(',') %}<option {{ 'selected' if params[name] == o }}>{{ o }}</option>{% endfor %}</select>
+        {% elif kind == 'date' %}<input type="date" name="{{ name }}" value="{{ params[name] }}">
+        {% else %}<input class="short" name="{{ name }}" value="{{ params[name] }}">{% endif %}</label>
+      {% endfor %}
+      <button class="btn small">Update</button>
+    </form>
+    {% endif %}
+    <a class="btn primary" href="{{ xlsx }}">Download Excel</a>
+  </div>
+</div>
+
+{% if res.summary %}
+<div class="grid g4" style="margin-bottom:1rem">
+  {% for label, val, fmt in res.summary %}<div class="stat"><div class="label">{{ label }}</div><div class="value">{{ cell(val, fmt) or '0' }}</div></div>{% endfor %}
+</div>
+{% endif %}
+
+{% if chart %}
+<div class="card">
+  <div class="rchart">
+    {% for row in res.rows %}
+    <div class="rchart-col" title="{{ row[chart.label_key] }}{% for k, l in chart.series %}&#10;{{ l }}: {{ row[k]|money(False) }}{% endfor %}">
+      <div class="rchart-stack">{% for k, l in chart.series %}<span class="s{{ loop.index }}" style="height: {{ (row[k] or 0) / chart.max * 100 }}%"></span>{% endfor %}</div>
+      <small>{{ row[chart.label_key][:3] }}</small>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="row" style="margin-top:.4rem">{% for k, l in chart.series %}<small><span class="rchart-key s{{ loop.index }}"></span> {{ l }}</small>{% endfor %}</div>
+</div>
+{% endif %}
+
+<div class="card table-wrap">
+  <table>
+    <thead><tr>{% for c in res.cols %}<th class="{{ 'num' if c.fmt in ('money', 'num', 'pct', 'int') }}">{{ c.label }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for row in res.rows %}
+      <tr>{% for c in res.cols %}<td class="{{ 'num' if c.fmt in ('money', 'num', 'pct', 'int') }}">{% if loop.first and row._link %}<a href="{{ row._link }}">{{ cell(row[c.key], c.fmt) }}</a>{% else %}{{ cell(row[c.key], c.fmt) }}{% endif %}</td>{% endfor %}</tr>
+    {% else %}<tr><td colspan="{{ res.cols|length }}" class="muted">Nothing to show for {{ school_year }}.</td></tr>{% endfor %}
+    {% if res.totals and res.rows %}<tr class="total">{% for c in res.cols %}<td class="{{ 'num' if c.fmt in ('money', 'num', 'pct', 'int') }}">{{ cell(res.totals.get(c.key), c.fmt) }}</td>{% endfor %}</tr>{% endif %}
+    </tbody>
+  </table>
+  <p class="muted" style="margin-bottom:0">{{ res.rows|length }} row{{ '' if res.rows|length == 1 else 's' }}.</p>
+</div>
+{% for n in res.notes %}<div class="notice">{{ n }}</div>{% endfor %}
+{% endblock %}

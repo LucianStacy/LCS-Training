@@ -69,6 +69,50 @@ Without Docker, run `python -m lcs_training reset-password you@example.org`. To 
    - Invoice Info
 3. Check the import report. Each time a name was matched to an existing client (for example "AV SELPA" → "Antelope Valley SELPA"), the report lists it. Fix any wrong match with **Merge into another client** on the client's page.
 
+## Needs attention
+
+**Needs attention** lists every loose end for the selected school year in one place, most important first:
+- contracts at $0, not split into income categories, or not matching their billing schedule
+- installments that should have been invoiced, and invoices unpaid 30+ days
+- contracts stuck in Draft, lines without a coach, ended contracts still Active
+- renewals with nothing started for next year, contracts behind on delivery
+- past sessions still marked Scheduled, over-planned consult plans, stale onboarding
+- quotes past their valid-until date, quiet leads, prices needing review
+- bad or duplicate email addresses, coaches over capacity
+- the client names the importer matched
+
+Contracts filed under "Other" can be split into categories right on the page. Anything that's fine as it is can be marked **Checked, it's fine**. It stays hidden until the data behind it changes, and **Show checked items** brings it back. Coaches see the delivery items but no dollar amounts.
+
+## Customer email
+
+**Email** is the outbox. The app drafts reminders automatically, and nobody's customer gets anything until someone presses **Send**:
+
+| Template | When it's drafted |
+|---|---|
+| Invoice coming due | 14 days before each installment |
+| Invoice past due | 30 days after an invoiced installment's due date |
+| Renewal reminder | 60 days before a contract ends |
+| Training / audit reminder | 3 days before a scheduled session |
+| Welcome | when the fully executed contract is received (contract leaves Draft) |
+| Quote, consult plan, general | by hand, from the quote, plan, contract or client page |
+
+- An Admin sets up the mail server under **Email → Email settings**. Microsoft 365 and Google Workspace need an app password. To keep the password out of the database, set `LCS_SMTP_PASSWORD` in `docker-compose.yml`.
+- **Test mode is on by default**: every email goes to your test address, with the real recipients shown in the subject. Turn it off when you go live.
+- Wording, timing and "send without review" are under **Email → Templates**. Placeholders like `{contact_first}` and `{due_date}` are filled in.
+- Quote emails attach the quote (it opens in a browser and prints to PDF). Consult plan emails attach the Word document. Sending a quote marks it Sent, and sending a plan marks it Sent.
+- Reminders only cover events from the day email is first switched on, so imported history doesn't turn into a pile of drafts. After that the app checks every hour.
+- Mark a contact **No reminder emails** to keep them out of automatic reminders.
+- Office Staff and Admins can write and send email. Viewers can read the outbox. Coaches don't see it.
+
+## Reports
+
+**Reports** has nine reports. Each one shows on screen and downloads as a branded Excel workbook:
+- **Sales:** Renewals, and Quotes with win rate
+- **Money:** Revenue by month (with a chart), Revenue by client and category, Unpaid invoices by age
+- **Delivery:** Delivery by service line, Trainings/audits/consults by date range, Onboarding progress, Coach workload by month
+
+Coaches only see the delivery reports.
+
 ## How the pieces connect
 
 | Step | Screen | What happens automatically |
@@ -100,6 +144,7 @@ Without Docker, run `python -m lcs_training reset-password you@example.org`. To 
 | Coaches | `LCS Coach`, `LCS Coach Unavailability` |
 | Delivery | `LCS Service Delivery Log` |
 | Consult plans | `LCS Consult Plan`, `LCS Consult Session` (new; not in the Blueprint yet) |
+| Email templates / sent email | `Email Template`, `Communication` (not in the export yet) |
 
 ## Notes
 

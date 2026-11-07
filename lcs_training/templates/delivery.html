@@ -5,6 +5,7 @@
 <div class="page-head">
   <div><h1>{{ 'Log or schedule' if new else (lg.subject or 'Delivery entry') }}</h1>
     <p class="sub"><a href="/contracts/{{ c.id }}?tab=delivery">{{ pname(c) }} {{ c.school_year }}</a></p></div>
+  {% if not new and can('email') and lg.status == 'Scheduled' %}<form method="post" action="/emails/new"><input type="hidden" name="kind" value="delivery"><input type="hidden" name="id" value="{{ lg.id }}"><button class="btn">Email reminder to client</button></form>{% endif %}
 </div>
 <form method="post" action="/deliveries/save">
   {% if not new %}<input type="hidden" name="id" value="{{ lg.id }}">{% endif %}

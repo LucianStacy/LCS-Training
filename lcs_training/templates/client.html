@@ -7,6 +7,7 @@
   {% if can('edit_sales') %}<div class="row">
     <form method="post" action="/quotes/new"><input type="hidden" name="party" value="{{ p.party_type }}:{{ p.id }}"><button class="btn primary">New quote</button></form>
     <form method="post" action="/leads/new"><input type="hidden" name="party" value="{{ p.party_type }}:{{ p.id }}"><button class="btn">New lead</button></form>
+    {% if can('email') %}<form method="post" action="/emails/new"><input type="hidden" name="kind" value="client"><input type="hidden" name="party" value="{{ p.party_type }}:{{ p.id }}"><button class="btn">Email</button></form>{% endif %}
   </div>{% endif %}
 </div>
 

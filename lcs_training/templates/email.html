@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Email{% endblock %}
+{% block content %}
+{% set locked = e.status == 'Sent' or not can('email') %}
+<div class="page-head">
+  <div><h1>{{ 'Email' if e.status == 'Sent' else 'Email draft' }}</h1>
+    <p class="sub">{{ e.status }}{% if tpl %} · {{ tpl.name }}{% endif %}
+      {% for label, href in links %} · <a href="{{ href }}">{{ label }}</a>{% endfor %}
+      {% if e.sent_at %} · sent {{ e.sent_at|fdate("%m/%d/%Y %I:%M %p") }} by {{ e.sent_by }}{% endif %}</p></div>
+  <div class="row"><a class="btn" href="/emails?status={{ e.status }}">Back to outbox</a></div>
+</div>
+
+{% if e.status == 'Failed' %}<div class="flash err"><b>Last attempt failed:</b> {{ e.error }}</div>{% endif %}
+{% if e.sent_to and e.sent_to != e.to_addrs %}<div class="notice">Sent in test mode: it went to <b>{{ e.sent_to }}</b>, not the customer.</div>{% endif %}
+{% if not locked and settings.test_mode and ready %}<div class="notice"><b>Test mode:</b> sending goes to {{ settings.test_to }}, not the addresses below.</div>{% endif %}
+
+<div class="grid g2">
+<form method="post" class="card">
+  <div class="field"><label>To (separate several with commas)</label><input class="wide" name="to_addrs" value="{{ e.to_addrs or '' }}" {{ 'disabled' if locked }}>
+    {% if contacts and not locked %}<small>Contacts: {% for c in contacts %}<a href="#" onclick="addTo('{{ c.full_name|replace("'", "") }} <{{ c.email_id }}>');return false">{{ c.full_name }}</a>{% if c.no_email %} <span class="badge review">no reminders</span>{% endif %}{{ ', ' if not loop.last }}{% endfor %}</small>{% endif %}</div>
+  <div class="field"><label>Cc</label><input class="wide" name="cc_addrs" value="{{ e.cc_addrs or '' }}" {{ 'disabled' if locked }}></div>
+  <div class="field"><label>Subject</label><input class="wide" name="subject" value="{{ e.subject }}" {{ 'disabled' if locked }}></div>
+  <div class="field"><label>Message</label><textarea name="body" style="min-height:22rem" {{ 'disabled' if locked }}>{{ e.body }}</textarea>
+    {% if '{' in e.body or '{' in e.subject %}<small style="color:#a3104c">There's a {placeholder} left in the text. Fill it in before sending.</small>{% endif %}</div>
+  {% if e.attach %}<div class="field"><label style="color:inherit"><input type="checkbox" name="keep_attach" checked {{ 'disabled' if locked }}> Attach {{ attach_label or e.attach }}</label></div>{% endif %}
+  {% if not locked %}
+  <p class="row" style="margin-bottom:0">
+    <button class="btn primary" name="action" value="send" {{ 'disabled' if not ready }} onclick="return confirm('Send this email now?')">Send</button>
+    <button class="btn" name="action" value="save">Save draft</button>
+    {% if e.status != 'Discarded' %}<button class="btn link" name="action" value="discard" onclick="return confirm('Discard this draft?')">Discard</button>{% endif %}
+    {% if e.status == 'Discarded' %}<button class="btn" name="action" value="restore">Move back to drafts</button>{% endif %}
+  </p>
+  {% if not ready %}<p class="muted">Sending isn't set up yet{% if can('admin') %}: <a href="/emails/settings">Email settings</a>{% endif %}.</p>{% endif %}
+  {% elif can('email') %}
+  <p style="margin-bottom:0"><button class="btn" name="action" value="copy">Copy into a new draft</button></p>
+  {% endif %}
+</form>
+
+<div class="card">
+  <h2 style="margin-top:0">Preview</h2>
+  <p class="muted">How the customer sees it{% if not locked %} (as last saved){% endif %}.</p>
+  <iframe srcdoc="{{ preview }}" style="width:100%;height:560px;border:1px solid var(--line);border-radius:6px;background:#F4F4F6" sandbox></iframe>
+</div>
+</div>
+<script>
+function addTo(a) { const f = document.querySelector('[name=to_addrs]'); f.value = f.value.trim() ? f.value.replace(/[,\s]+$/, '') + ', ' + a : a; }
+</script>
+{% endblock %}

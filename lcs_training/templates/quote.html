@@ -9,6 +9,7 @@
       {% if q.is_amendment and q.amends_contract_id %} · amends <a href="/contracts/{{ q.amends_contract_id }}">contract</a>{% endif %}</p></div>
   <div class="row">
     <a class="btn" href="/quotes/{{ q.id }}/print" target="_blank">Print / PDF</a>
+    {% if can('email') %}<form method="post" action="/emails/new"><input type="hidden" name="kind" value="quote"><input type="hidden" name="id" value="{{ q.id }}"><button class="btn">Email to client</button></form>{% endif %}
     {% if not locked %}
     <form method="post" action="/quotes/{{ q.id }}/status" onsubmit="return confirm('Accept this quote? {{ 'Its services will be added to the contract and billing reset.' if q.is_amendment else 'This creates the contract, its service lines and the billing schedule.' }}')">
       <input type="hidden" name="status" value="Accepted"><button class="btn primary">Quote accepted</button></form>

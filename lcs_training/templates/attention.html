@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Needs attention{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Needs attention</h1>
+    <p class="sub">{{ school_year }} · {{ total }} item{{ '' if total == 1 else 's' }}{% if high %} · <b style="color:#a3104c">{{ high }} important</b>{% endif %}.
+      Fix the record, or mark an item <i>checked</i> if it's fine as it is.</p></div>
+  <div class="row">
+    {% if show_all %}<a class="btn" href="/attention">Hide checked items</a>{% else %}<a class="btn" href="/attention?all=1">Show checked items</a>{% endif %}
+  </div>
+</div>
+
+{% if not total and not show_all %}<div class="card"><h2 style="margin-top:0">All clear</h2><p class="muted" style="margin:0">Nothing needs attention for {{ school_year }}.</p></div>{% endif %}
+
+<nav class="att-toc">
+  {% for s in sections if s.items %}<a href="#{{ s.key }}">{{ s.title }} <span class="badge {{ 'risk' if s.items|selectattr('severity','equalto','high')|list else '' }}">{{ s.items|rejectattr('severity','equalto','done')|list|length }}</span></a>{% endfor %}
+</nav>
+
+{% for s in sections if s.items %}
+<div class="card" id="{{ s.key }}">
+  <div class="row"><h2 style="margin:0">{{ s.title }}</h2><span class="muted">{{ s.items|length }}{% if s.dismissed and not show_all %} · {{ s.dismissed }} checked and hidden{% endif %}</span>
+    {% set bulk = s.items|selectattr('dismissable')|rejectattr('severity','equalto','done')|list %}
+    {% if can('triage') and bulk|length > 1 %}<span class="spacer"></span>
+    <form method="post" action="/attention/dismiss" onsubmit="return confirm('Mark all {{ bulk|length }} items in “{{ s.title }}” as checked?')">
+      {% for it in bulk %}<input type="hidden" name="key" value="{{ it.key }}">{% endfor %}<input type="hidden" name="back" value="/attention#{{ s.key }}">
+      <button class="btn small">Mark all checked</button></form>{% endif %}
+  </div>
+  <p class="muted" style="margin:.3rem 0 .6rem">{{ s.help }}</p>
+  <div class="att-list">
+  {% for it in s.items %}
+    <div class="att-item sev-{{ it.severity }}">
+      <div class="att-main">
+        <div class="att-title">{% if it.severity == 'high' %}<span class="badge risk">important</span> {% elif it.severity == 'done' %}<span class="badge s-Done">checked</span> {% endif %}{{ it.title }}</div>
+        {% if it.detail %}<div class="muted">{{ it.detail }}</div>{% endif %}
+        {% if it.fix and it.fix.kind == 'split' and can('edit_billing') and it.severity != 'done' %}
+        <details class="att-fix"><summary class="btn small">Split into categories</summary>
+          <form method="post" action="/contracts/{{ it.fix.contract }}/categories" class="split-form" data-total="{{ '%.2f'|format(it.fix.total) }}">
+            <input type="hidden" name="back" value="/attention#{{ s.key }}">
+            <div class="row">
+            {% for k in CATS %}<label style="margin:0">{{ CAT_LABEL[k] }}<br><input class="cat" name="amount_{{ k }}" value="{{ '%.2f'|format(it.fix.cats[k]) }}" style="width:7.5rem"></label>{% endfor %}
+              <div><small>Contract</small><br><b>{{ it.fix.total|money }}</b><br><small class="split-left"></small></div>
+              <button class="btn small primary" style="align-self:flex-end">Save split</button>
+            </div>
+            <small class="muted">Must add up to the contract value. Installments not yet invoiced are re-split to match.</small>
+          </form>
+        </details>
+        {% endif %}
+      </div>
+      <div class="att-actions">
+        {% if it.link %}<a class="btn small" href="{{ it.link }}">{{ it.link_label }}</a>{% endif %}
+        {% if can('triage') and it.dismissable %}
+          {% if it.severity == 'done' %}
+          <form method="post" action="/attention/restore"><input type="hidden" name="key" value="{{ it.key }}"><input type="hidden" name="back" value="/attention?all=1#{{ s.key }}"><button class="btn link">Put back</button></form>
+          {% else %}
+          <form method="post" action="/attention/dismiss"><input type="hidden" name="key" value="{{ it.key }}"><input type="hidden" name="back" value="/attention#{{ s.key }}"><button class="btn link" title="Hide this until the data behind it changes">Checked, it's fine</button></form>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+<script>
+document.querySelectorAll('.split-form').forEach(f => {
+  const total = parseFloat(f.dataset.total), out = f.querySelector('.split-left');
+  const upd = () => {
+    let s = 0; f.querySelectorAll('input.cat').forEach(i => s += parseFloat((i.value || '0').replace(/[$,]/g, '')) || 0);
+    const d = Math.round((total - s) * 100) / 100;
+    out.textContent = d === 0 ? 'adds up' : (d > 0 ? '$' + d.toFixed(2) + ' left' : '$' + (-d).toFixed(2) + ' over');
+    out.style.color = d === 0 ? '#1f7a2e' : '#a3104c';
+  };
+  f.addEventListener('input', upd); upd();
+});
+</script>
+{% endblock %}

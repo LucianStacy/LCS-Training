@@ -16,11 +16,12 @@
     <a href="/"><img src="/static/logo.png" alt="LCS-Training"></a>
     {% if user %}
     <nav class="nav">
-      {% for href, label, perm in [("/", "Dashboard", "view"), ("/leads", "Leads", "view_sales"), ("/quotes", "Quotes", "view_sales"),
+      {% for href, label, perm in [("/", "Dashboard", "view"), ("/attention", "Needs attention", "view"), ("/leads", "Leads", "view_sales"), ("/quotes", "Quotes", "view_sales"),
                                    ("/contracts", "Contracts", "view_ops"), ("/deliveries", "Trainings & Audits", "view_ops"),
                                    ("/plans", "Consult Plans", "view_ops"), ("/coaches", "Coaches", "view_ops"),
                                    ("/clients", "Clients", "view_ops"), ("/contacts", "Contacts", "view_ops"),
-                                   ("/prices", "Price List", "view_sales"), ("/import", "Import / Export", "admin"),
+                                   ("/prices", "Price List", "view_sales"), ("/emails", "Email", "view_email"),
+                                   ("/reports", "Reports", "view_ops"), ("/import", "Import / Export", "admin"),
                                    ("/setup", "Setup", "admin"), ("/users", "Users", "admin")] %}
         {% if can(perm) %}<a href="{{ href }}" class="{{ 'on' if (href == '/' and path == '/') or (href != '/' and path.startswith(href)) }}">{{ label }}</a>{% endif %}
       {% endfor %}

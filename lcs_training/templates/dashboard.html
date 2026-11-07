@@ -17,6 +17,7 @@
 </div>
 {% endif %}
 
+{% if attention_count %}<a class="att-banner {{ 'high' if attention_high }}" href="/attention"><b>{{ attention_count }} item{{ '' if attention_count == 1 else 's' }} need{{ 's' if attention_count == 1 else '' }} attention</b>{% if attention_high %} · {{ attention_high }} important{% endif %} <span>Open the list →</span></a>{% endif %}
 {% if review_prices and can('view_sales') %}<div class="notice">Some {{ school_year }} prices are still marked <b>needs review</b>. Confirm them on the <a href="/prices">Price List</a> before sending quotes.</div>{% endif %}
 
 <div class="grid g4" style="margin-bottom:1rem">

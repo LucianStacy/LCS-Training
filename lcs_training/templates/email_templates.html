@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Email templates{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Email templates</h1><p class="sub">The wording and timing of every customer email. <a href="/emails">Back to the outbox</a></p></div>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Placeholders</h2>
+  <p class="muted">Type these in curly braces and the app fills them in, e.g. <code>{contact_first}</code>.</p>
+  <div class="grid g3">{% for group, keys in placeholders.items() %}<div><b>{{ group }}</b><br>{% for k in keys %}<code>{{ '{' ~ k ~ '}' }}</code> {% endfor %}</div>{% endfor %}</div>
+</div>
+
+{% for t in tpls %}{% set d = defaults.get(t.key) %}
+<form method="post" action="/emails/templates/{{ t.id }}" class="card" id="t{{ t.id }}">
+  <div class="row"><h2 style="margin:0">{{ t.name }}</h2>
+    {% if d and (d.days is not none or t.key == 'welcome') %}{% if t.auto_send %}<span class="badge risk">sends automatically</span>{% elif t.auto_draft %}<span class="badge s-Scheduled">drafts automatically</span>{% else %}<span class="badge">off</span>{% endif %}
+    {% else %}<span class="badge">written by hand</span>{% endif %}</div>
+  <div class="fields" style="margin-top:.6rem">
+    <div class="field"><label>Name</label><input class="wide" name="name" value="{{ t.name }}"></div>
+    {% if d and d.days is not none %}
+    <div class="field"><label>{{ 'Days after the due date' if t.key == 'invoice_overdue' else 'Days before' }}</label><input class="short" name="days" value="{{ t.days if t.days is not none else '' }}"></div>
+    <div class="field"><label>&nbsp;</label>
+      <label style="color:inherit"><input type="checkbox" name="auto_draft" {{ 'checked' if t.auto_draft }}> Create drafts automatically</label>
+      <label style="color:inherit"><input type="checkbox" name="auto_send" {{ 'checked' if t.auto_send }} onchange="if(this.checked && !confirm('Send these without anyone reviewing them first?')) this.checked = false"> …and send them without review</label></div>
+    {% elif t.key == 'welcome' %}
+    <div class="field"><label>&nbsp;</label><label style="color:inherit"><input type="checkbox" name="auto_draft" {{ 'checked' if t.auto_draft }}> Draft when the fully executed contract is received</label>
+      <label style="color:inherit"><input type="checkbox" name="auto_send" {{ 'checked' if t.auto_send }} onchange="if(this.checked && !confirm('Send these without anyone reviewing them first?')) this.checked = false"> …and send it without review</label></div>
+    {% endif %}
+  </div>
+  <div class="field"><label>Subject</label><input class="wide" name="subject" value="{{ t.subject }}"></div>
+  <div class="field"><label>Message</label><textarea name="body" style="min-height:14rem">{{ t.body }}</textarea></div>
+  <p class="row" style="margin-bottom:0"><button class="btn primary small">Save</button>
+    {% if d %}<button class="btn link" name="reset" value="1" onclick="return confirm('Put back the original wording?')">Reset to original</button>{% endif %}</p>
+</form>
+{% endfor %}
+{% endblock %}

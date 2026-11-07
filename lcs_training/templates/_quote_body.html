@@ -1,0 +1,36 @@
+<div class="print-page">
+  <div class="print-head">
+    <img src="{{ logo_src or '/static/logo.png' }}" alt="LCS-Training">
+    <div style="text-align:right">
+      <h1 style="margin:0">Quote</h1>
+      <div>No. <b>{{ q.quote_number }}</b></div>
+      <div>{{ q.quote_date|fdate("%B %d, %Y") }}</div>
+      {% if q.valid_until %}<div class="muted">Valid until {{ q.valid_until|fdate("%B %d, %Y") }}</div>{% endif %}
+    </div>
+  </div>
+  <p><b>Prepared for:</b> {{ party.name }}<br><b>School year:</b> {{ q.school_year }}{% if q.student_tier %}<br><b>Size tier:</b> {{ q.student_tier }} ({{ TIER_HELP[q.student_tier] }}){% endif %}</p>
+  {% for cat in CATS %}{% set rows = q.items|selectattr('income_category', 'equalto', CAT_LABEL[cat])|selectattr('qty')|list %}
+    {% if rows %}
+    <h3>{{ CAT_LABEL[cat] }}</h3>
+    <table>
+      <thead><tr><th>Service</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+      {% for it in rows %}
+        <tr><td>{{ it.description or (it.price_item.item_name if it.price_item) }}</td>
+          <td class="num">{{ it.qty|num }}{% if it.factor %} × {{ it.factor|num }}{% endif %}</td>
+          <td class="num">{% if it.price_item and it.price_item.method == 'percent_of_group' %}{{ (it.rate*100)|num }}% off{% else %}{{ it.rate|money }}{% endif %}</td>
+          <td class="num">{{ it.amount|money }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endfor %}
+  <table style="margin-top:1rem;max-width:320px;margin-left:auto">
+    <tbody>
+    {% for k in CATS %}{% if q['total_' ~ k] %}<tr><td>{{ CAT_LABEL[k] }}</td><td class="num">{{ q['total_' ~ k]|money }}</td></tr>{% endif %}{% endfor %}
+    <tr class="total"><td>Total</td><td class="num">{{ q.grand_total|money }}</td></tr>
+    </tbody>
+  </table>
+  {% if q.client_details %}<h3>Details</h3><p style="white-space:pre-wrap">{{ q.client_details }}</p>{% endif %}
+  <div class="print-foot">{{ FOOTER_LINE }}</div>
+</div>

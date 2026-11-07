@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Reports</h1><p class="sub">{{ school_year }}. Every report can be downloaded as an Excel workbook.</p></div>
+</div>
+<div class="grid g3">
+{% for group, rs in groups.items() %}
+  <div class="card">
+    <h2 style="margin-top:0">{{ group }}</h2>
+    {% for r in rs %}
+    <div class="report-link"><a href="/reports/{{ r.key }}"><b>{{ r.title }}</b></a> <a class="muted" href="/reports/{{ r.key }}?format=xlsx" title="Download Excel"><small>Excel</small></a><br><small class="muted">{{ r.description }}</small></div>
+    {% endfor %}
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

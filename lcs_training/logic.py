@@ -418,6 +418,9 @@ def on_status_change(db, c: TrainingContract, old: str) -> list[str]:
         n = generate_onboarding(db, c)
         if n:
             msgs.append(f"Onboarding checklist generated with {n} task(s) for the contracted services.")
+        from . import mail  # the welcome email is drafted on this event only (never for imported contracts)
+        if mail.welcome_on_signing(db, c):
+            msgs.append("A welcome email is waiting in the outbox.")
     msgs += maybe_activate(db, c)
     return msgs
 

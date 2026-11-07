@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Email settings{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Email settings</h1><p class="sub">The mail server the app sends customer email through. <a href="/emails">Back to the outbox</a></p></div>
+</div>
+
+<div class="grid g2">
+<form method="post" class="card">
+  <h2 style="margin-top:0">Mail server (SMTP)</h2>
+  <div class="fields">
+    <div class="field"><label>Server</label><input class="wide" name="smtp_host" value="{{ s.smtp_host }}" placeholder="smtp.office365.com / smtp.gmail.com"></div>
+    <div class="field"><label>Port</label><input class="short" name="smtp_port" value="{{ s.smtp_port }}"></div>
+    <div class="field"><label>Security</label><select name="smtp_security">
+      {% for v, l in [('starttls', 'STARTTLS (usually port 587)'), ('ssl', 'SSL/TLS (usually port 465)'), ('none', 'None (internal relay only)')] %}<option value="{{ v }}" {{ 'selected' if s.smtp_security == v }}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Username</label><input class="wide" name="smtp_user" value="{{ s.smtp_user }}" autocomplete="off"></div>
+    <div class="field"><label>Password {% if s.has_password %}<span class="badge s-Done">saved</span>{% endif %}</label>
+      <input class="wide" type="password" name="smtp_password" placeholder="{{ 'leave blank to keep it' if s.has_password else '' }}" autocomplete="new-password">
+      {% if env_password %}<small>Using the LCS_SMTP_PASSWORD environment variable.</small>{% elif s.has_password %}<label style="color:inherit"><input type="checkbox" name="clear_password"> remove saved password</label>{% endif %}</div>
+  </div>
+  <p class="muted">For Microsoft 365 or Google Workspace, use an <b>app password</b> rather than your normal password. The password is kept in the app's database; to keep it out of the database instead, set <code>LCS_SMTP_PASSWORD</code> in docker-compose.yml.</p>
+
+  <h2>Sender</h2>
+  <div class="fields">
+    <div class="field"><label>From name</label><input class="wide" name="from_name" value="{{ s.from_name }}"></div>
+    <div class="field"><label>From address</label><input class="wide" name="from_email" value="{{ s.from_email }}" placeholder="info@lcs-training.com"></div>
+    <div class="field"><label>Replies go to (optional)</label><input class="wide" name="reply_to" value="{{ s.reply_to }}"></div>
+    <div class="field"><label>Blind copy every email to (optional)</label><input class="wide" name="bcc" value="{{ s.bcc }}"></div>
+    <div class="field"><label>Signature name (blank = the signed-in person)</label><input class="wide" name="sender_name" value="{{ s.sender_name }}" placeholder="e.g. The LCS-Training team"></div>
+  </div>
+
+  <h2>Test mode</h2>
+  <label style="color:inherit"><input type="checkbox" name="test_mode" {{ 'checked' if s.test_mode }}> <b>Send everything to a test address instead of customers</b></label>
+  <div class="field" style="margin-top:.5rem"><label>Test address</label><input class="wide" name="test_to" value="{{ s.test_to }}" placeholder="you@lcs-training.com"></div>
+  <p class="muted">Leave this on while you're trying the app out. Each test email's subject shows who it would have gone to.</p>
+  <button class="btn primary">Save settings</button>
+</form>
+
+<div>
+  <div class="card">
+    <h2 style="margin-top:0">Status</h2>
+    {% if ready %}<p><span class="badge s-Done">ready</span> {{ 'Test mode: emails go to ' ~ s.test_to if s.test_mode else 'Live: emails go to customers.' }}</p>
+    {% else %}<p><span class="badge review">not set up</span> Enter the server and From address{{ ', and a test address (or turn test mode off)' if s.test_mode }}.</p>{% endif %}
+    <form method="post" action="/emails/settings/test" class="row">
+      <input name="to" value="{{ s.test_to or user.username }}" style="flex:1" placeholder="you@example.org">
+      <button class="btn">Send a test email</button></form>
+    <p class="muted" style="margin-bottom:0">Save the settings first, then send yourself a test.</p>
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">What gets sent</h2>
+    <p>Edit the wording, timing and automatic sending on <a href="/emails/templates">Templates</a>. By default the app drafts:</p>
+    <ul>
+      <li><b>Invoice coming due</b>: 14 days before each installment</li>
+      <li><b>Invoice past due</b>: 30 days after an invoiced installment's due date</li>
+      <li><b>Renewal reminder</b>: 60 days before a contract ends</li>
+      <li><b>Training / audit reminder</b>: 3 days before a scheduled session</li>
+      <li><b>Welcome</b>: when a fully executed contract is received</li>
+    </ul>
+    <p class="muted" style="margin-bottom:0">Quotes, consult plans and general messages are written from their own pages. Contacts marked <i>no reminder emails</i> are skipped.</p>
+  </div>
+</div>
+</div>
+{% endblock %}

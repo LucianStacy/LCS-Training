@@ -32,14 +32,18 @@ from .seed import PAPERWORK_STEPS, seed_reference_data
 app = FastAPI(title="LCS-Training")
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 app.include_router(__import__("lcs_training.accounts", fromlist=["router"]).router)
+app.include_router(__import__("lcs_training.features", fromlist=["router"]).router)
 templates = Jinja2Templates(directory=APP_DIR / "templates")
 
 
 @app.on_event("startup")
 def _startup():
+    from . import mail
     init_db()
     with SessionLocal() as db:
         seed_reference_data(db)
+        mail.seed_templates(db)
+    mail.start_scheduler()
 
 
 def get_db():
@@ -239,11 +243,17 @@ def dashboard(request: Request, db=Depends(get_db)):
     unbooked = sum(max(logic.plan_hours(p)["unbooked"], 0) for p in plans)
     review_prices = db.scalar(select(PriceItem.id).where(PriceItem.school_year == sy, PriceItem.needs_review).limit(1))
     empty = not contracts and not db.scalar(select(LcsDistrict.id).limit(1))
+    from . import attention
+    can = lambda p: auth.has_perm(request.state.user, p)  # noqa: E731
+    att = attention.collect(db, sy, can)
+    attention_count = sum(len(s.items) for s in att)
+    attention_high = sum(1 for s in att for i in s.items if i.severity == "high")
     return render(request, "dashboard.html", db, contracts=contracts, by_status=by_status, total_value=total_value,
                   risks=risks, due=due, coaches=coaches, pooled=pooled, pooled_lines=pooled_lines,
                   tasks_by_contract=tasks_by_contract, open_task_count=len(open_tasks), upcoming=upcoming,
                   leads=leads, open_quotes=open_quotes, unbooked=unbooked, plans=plans, review_prices=review_prices,
-                  empty=empty, contract_map={c.id: c for c in contracts})
+                  empty=empty, contract_map={c.id: c for c in contracts}, attention_count=attention_count,
+                  attention_high=attention_high)
 
 
 @app.post("/year")
@@ -389,6 +399,7 @@ async def contact_save(request: Request, db=Depends(get_db)):
     c.full_name = fs(form, "full_name") or "(unnamed)"
     c.email_id, c.phone, c.designation = fs(form, "email_id"), fs(form, "phone"), fs(form, "designation")
     c.notes = fs(form, "notes")
+    c.no_email = bool(form.get("no_email"))
     c.party_type, c.party_id = logic.parse_party_key(form.get("party") or "")
     wanted = {int(t) for t in form.getlist("tags")}
     for ti in list(c.tags):
@@ -1373,8 +1384,10 @@ async def import_clients(request: Request, db=Depends(get_db)):
         db.rollback()
         return go("/import", err=f"Couldn't read that workbook: {e}")
     logic.set_setting(db, "last_import", json.dumps(rep.as_dict()))
+    prev = json.loads(logic.get_setting(db, "import_matches") or "[]")
+    logic.set_setting(db, "import_matches", json.dumps(prev + [m for m in rep.matched if m not in prev]))
     db.commit()
-    return go("/import#report", "Client spreadsheet imported. Review the matches below.")
+    return go("/import#report", "Client spreadsheet imported. Review the matches below, or on Needs attention.")
 
 
 @app.get("/export/erpnext.zip")

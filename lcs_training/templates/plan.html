@@ -6,6 +6,7 @@
     <p class="sub"><a href="/contracts/{{ p.contract_id }}?tab=plans">{{ pname(p.contract) }} {{ p.contract.school_year }}</a> · {{ m.badge(p.status) }}{% if p.plan_sent_date %} · sent {{ p.plan_sent_date|fdate }}{% endif %}</p></div>
   <div class="row">
     <a class="btn primary" href="/plans/{{ p.id }}/docx">Download Word document</a>
+    {% if can('email') %}<form method="post" action="/emails/new"><input type="hidden" name="kind" value="plan"><input type="hidden" name="id" value="{{ p.id }}"><button class="btn">Email to client</button></form>{% endif %}
     <form method="post" action="/plans/{{ p.id }}/sent"><button class="btn">Mark sent to client</button></form>
   </div>
 </div>

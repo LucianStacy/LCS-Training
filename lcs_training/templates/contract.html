@@ -5,9 +5,13 @@
   <div><h1>{{ party.name }}</h1>
     <p class="sub">{{ c.school_year }} contract · {{ m.badge(c.status) }} · {{ c.contract_start_date|fdate }} – {{ c.contract_end_date|fdate }}
       · <a href="{{ party_url(c.party_type, c.party_id) }}">client page</a>{% if quote %} · from quote <a href="/quotes/{{ quote.id }}">{{ quote.quote_number }}</a>{% endif %}</p></div>
+  <div class="row">
+  {% if can('email') %}<form class="row" method="post" action="/emails/new"><input type="hidden" name="kind" value="contract"><input type="hidden" name="id" value="{{ c.id }}">
+    <select name="template"><option value="general">General message</option><option value="welcome">Welcome</option><option value="renewal">Renewal reminder</option></select><button class="btn">Email client</button></form>{% endif %}
   {% if can('edit_contracts') %}<form class="row" method="post" action="/contracts/{{ c.id }}/status">
     <label style="margin:0">Status</label><select name="status">{{ m.options(CONTRACT_STATUSES, c.status) }}</select><button class="btn">Set</button>
   </form>{% endif %}
+  </div>
 </div>
 
 <div class="grid g4" style="margin-bottom:1rem">
@@ -203,7 +207,8 @@
     {% for i in c.billing_schedule %}
       {% set f = 'inst' ~ i.id %}
       <tr>
-        <td>{{ loop.index }}<form id="{{ f }}" method="post" action="/installments/{{ i.id }}"></form></td>
+        <td>{{ loop.index }}<form id="{{ f }}" method="post" action="/installments/{{ i.id }}"></form>
+          <form id="em{{ i.id }}" method="post" action="/emails/new"><input type="hidden" name="kind" value="installment"><input type="hidden" name="id" value="{{ i.id }}"><input type="hidden" name="template" value="{{ 'invoice_overdue' if i.status == 'Invoiced' and i.due_date < today else 'invoice_upcoming' }}"></form></td>
         <td>{% if c.billing_frequency == 'Custom' or i.status == 'Planned' %}<input form="{{ f }}" type="date" name="due_date" value="{{ i.due_date.isoformat() }}">{% else %}{{ i.due_date|fdate }}{% endif %}</td>
         <td class="num">{% if c.billing_frequency == 'Custom' or i.status == 'Planned' %}<input form="{{ f }}" type="number" step="any" name="amount" value="{{ i.amount }}" style="width:7rem">{% else %}{{ i.amount|money }}{% endif %}</td>
         {% for k in CATS %}<td class="num"><small>{{ i['amount_' ~ k]|money(False) if i['amount_' ~ k] else '' }}</small></td>{% endfor %}
@@ -211,6 +216,7 @@
         <td><input form="{{ f }}" name="invoice_ref" value="{{ i.invoice_ref or '' }}" style="width:6rem"></td>
         <td><input form="{{ f }}" name="note" value="{{ i.note or '' }}" style="width:12rem"></td>
         <td style="white-space:nowrap"><button form="{{ f }}" class="btn small">Save</button> <a class="btn small" href="/installments/{{ i.id }}/invoice">Invoice sheet</a>
+          {% if can('email') and i.status in ('Planned', 'Invoiced') %}<button form="em{{ i.id }}" class="btn small" title="{{ 'Past-due reminder' if i.status == 'Invoiced' and i.due_date < today else 'Upcoming invoice reminder' }}">Email</button>{% endif %}
           {% if i.status == 'Planned' %}<button form="{{ f }}" class="btn link" name="delete" value="1" onclick="return confirm('Remove this installment?')">remove</button>{% endif %}</td>
       </tr>
     {% else %}<tr><td colspan="12" class="muted">No installments. Set the billing settings above and rebuild.</td></tr>{% endfor %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}{% import "_m.html" as m %}
+{% block title %}Email{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Customer email</h1>
+    <p class="sub">Reminders are drafted here automatically. Nothing goes to a customer until someone presses Send.</p></div>
+  <div class="row">
+    {% if can('email') %}<form method="post" action="/emails/check"><button class="btn">Check for reminders now</button></form>{% endif %}
+    {% if can('admin') %}<a class="btn" href="/emails/templates">Templates</a><a class="btn" href="/emails/settings">Email settings</a>{% endif %}
+  </div>
+</div>
+
+{% if not ready %}<div class="notice">Sending isn't set up yet. {% if can('admin') %}Enter your mail server under <a href="/emails/settings">Email settings</a>.{% else %}Ask an Admin to set up Email settings.{% endif %} Drafts can still be written and reviewed.</div>
+{% elif settings.test_mode %}<div class="notice"><b>Test mode is on:</b> every email goes to <b>{{ settings.test_to }}</b>, not the customer. The subject shows who it would have gone to.{% if can('admin') %} Turn it off in <a href="/emails/settings">Email settings</a> when you go live.{% endif %}</div>{% endif %}
+{% if not started and can('email') %}<div class="notice">Automatic reminder drafts start the first time you press <b>Check for reminders now</b> (or save Email settings). From then on the app checks every hour. Reminders only cover events from that day on, so the imported backlog doesn't flood the outbox.</div>{% endif %}
+
+<nav class="tabs">{% for s in ['Draft', 'Sent', 'Failed', 'Discarded'] %}<a href="?status={{ s }}" class="{{ 'on' if status == s }}">{{ {'Draft': 'Drafts'}.get(s, s) }} <span class="badge">{{ counts[s] }}</span></a>{% endfor %}</nav>
+
+<form method="post" action="/emails/send-selected" id="bulk">
+<div class="card table-wrap">
+  <table>
+    <thead><tr>{% if status in ('Draft', 'Failed') and can('email') %}<th><input type="checkbox" onclick="document.querySelectorAll('.pick').forEach(c => c.checked = this.checked)"></th>{% endif %}
+      <th>{{ 'Sent' if status == 'Sent' else 'Created' }}</th><th>Type</th><th>Client</th><th>To</th><th>Subject</th>{% if status == 'Failed' %}<th>Error</th>{% endif %}{% if status == 'Sent' %}<th>By</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for e in rows %}
+      <tr>{% if status in ('Draft', 'Failed') and can('email') %}<td><input class="pick" type="checkbox" name="id" value="{{ e.id }}"></td>{% endif %}
+        <td style="white-space:nowrap">{{ (e.sent_at or e.created_at)|fdate("%m/%d/%Y %I:%M %p") }}</td>
+        <td><small>{{ tpl_names.get(e.template_key, 'Message') }}</small></td>
+        <td>{% if e.party_id %}<a href="{{ party_url(e.party_type, e.party_id) }}">{{ pname(e) }}</a>{% endif %}</td>
+        <td><small>{{ e.to_addrs or '' }}{% if not e.to_addrs %}<span class="badge risk">no recipient</span>{% endif %}</small></td>
+        <td><a href="/emails/{{ e.id }}">{{ e.subject }}</a>{% if e.attach %} 📎{% endif %}</td>
+        {% if status == 'Failed' %}<td><small style="color:#a3104c">{{ e.error }}</small></td>{% endif %}
+        {% if status == 'Sent' %}<td><small>{{ e.sent_by }}{% if e.sent_to and e.sent_to != e.to_addrs %}<br>went to {{ e.sent_to }}{% endif %}</small></td>{% endif %}
+      </tr>
+    {% else %}<tr><td colspan="7" class="muted">No {{ status|lower }} emails.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% if rows and status in ('Draft', 'Failed') and can('email') %}
+  <p class="row" style="margin-bottom:0">
+    <button class="btn primary" name="action" value="send" {{ 'disabled' if not ready }} onclick="return confirm('Send the selected emails?')">Send selected</button>
+    <button class="btn" name="action" value="discard" onclick="return confirm('Discard the selected drafts?')">Discard selected</button>
+  </p>
+  {% endif %}
+</div>
+</form>
+
+{% if can('email') %}
+<div class="card">
+  <h2 style="margin-top:0">Write a new email</h2>
+  <p class="muted">You can also start one from a quote, contract, invoice installment, training or consult plan page: look for the <b>Email</b> button.</p>
+  <form class="row" method="post" action="/emails/new"><input type="hidden" name="kind" value="client">
+    <select name="party" required><option value="">Choose a client…</option>
+      {% for p in parties %}<option value="{{ p.party_type }}:{{ p.id }}">{{ p.name }}</option>{% endfor %}</select>
+    <button class="btn">Start email</button></form>
+</div>
+{% endif %}
+{% endblock %}
