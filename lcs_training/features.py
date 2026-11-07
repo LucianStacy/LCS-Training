@@ -192,6 +192,13 @@ async def email_new(request: Request, db=Depends(get_db)):
                                    who, dedupe=False)
     elif kind == "delivery" and (d := db.get(ServiceDeliveryLog, oid)):
         m = mail.draft_delivery(db, d, who, dedupe=False)
+    elif kind == "contract" and (c := db.get(TrainingContract, oid)) and tpl == "onboarding_followup":
+        from . import onboarding
+        cl = logic.checklist_for(db, c)
+        missing = onboarding.missing_items(cl) if cl else []
+        if not missing:
+            return go(_back(form, f"/contracts/{oid}?tab=onboarding"), err="Nothing is missing from the client.")
+        m = mail.draft_onboarding_followup(db, c, missing, user=who)
     elif kind == "contract" and (c := db.get(TrainingContract, oid)):
         m = mail.draft_contract(db, c, tpl or "general", who, dedupe=False) if tpl not in ("", "general") else \
             mail.draft_general(db, c.party_type, c.party_id, c, user=who)

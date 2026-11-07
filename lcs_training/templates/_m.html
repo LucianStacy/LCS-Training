@@ -15,14 +15,14 @@
 {%- endmacro %}
 
 {# Checklist table: steps have id, step, status, step_date, note (and optional stage) #}
-{% macro steps_table(steps, prefix="step", show_stage=False) -%}
+{% macro steps_table(steps, prefix="step", show_stage=False, auto_rules=None) -%}
 <div class="table-wrap"><table class="steps">
   <thead><tr>{% if show_stage %}<th>Stage</th>{% endif %}<th>Step</th><th>Status</th><th>Date</th><th>Note</th></tr></thead>
   <tbody>
   {% for s in steps %}
     <tr>
       {% if show_stage %}<td class="stage">{{ s.stage or '' }}</td>{% endif %}
-      <td>{{ s.step }}</td>
+      <td>{{ s.step }}{% if auto_rules and auto_rules.get(s.auto) %} <span class="badge auto" title="Ticks itself when {{ auto_rules[s.auto] }}">auto</span>{% endif %}</td>
       <td><select name="{{ prefix }}_{{ s.id }}_status">{{ options(STEP_STATUSES, s.status) }}</select></td>
       <td><input type="date" name="{{ prefix }}_{{ s.id }}_date" value="{{ s.step_date.isoformat() if s.step_date else '' }}"></td>
       <td><input class="note" name="{{ prefix }}_{{ s.id }}_note" value="{{ s.note or '' }}"></td>

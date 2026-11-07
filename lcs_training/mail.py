@@ -68,6 +68,11 @@ DEFAULT_TEMPLATES = [
          body="Hello {contact_first},\n\nThis is a reminder of your upcoming session:\n\n{training_subject}\n"
               "Date: {training_date} {training_time}\nFormat: {mode}\nCoach: {coach}\n\nPlease make sure "
               "participants have their logins ready. Let us know if you need to reschedule." + SIGN),
+    dict(key="onboarding_followup", name="Onboarding follow-up (missing items)", days=7,
+         subject="Still needed to set up your LCS-Training services, {client}",
+         body="Hello {contact_first},\n\nThank you again for choosing LCS-Training for {school_year}. To finish "
+              "setting up your services, we still need:\n\n{missing_items}\n\nYou can reply to this email with "
+              "the information or attach the files." + SIGN),
     dict(key="consult_plan", name="Consult plan for the client", days=None, auto_draft=False,
          subject="Your LCS-Training consult plan, {client}",
          body="Hello {contact_first},\n\nAttached is the consult plan from our pre-consult meeting, with the "
@@ -84,6 +89,7 @@ PLACEHOLDERS = {
     "Invoices": ["due_date", "amount", "invoice_ref"],
     "Quotes": ["quote_number", "quote_total", "quote_valid_until", "quote_items"],
     "Trainings": ["training_subject", "training_date", "training_time", "mode", "coach"],
+    "Onboarding": ["missing_items"],
 }
 
 
@@ -294,6 +300,16 @@ def draft_contract(db, c: TrainingContract, tpl_key: str, user="", dedupe=True) 
                 party_type=c.party_type, party_id=c.party_id, contract_id=c.id)
 
 
+def draft_onboarding_followup(db, c: TrainingContract, missing, rnd=None, user="") -> Optional[EmailMessage]:
+    from . import onboarding
+    to, ct = recipients_for(db, c.party_type, c.party_id, c)
+    ctx = base_ctx(db, c.party_type, c.party_id, c.school_year, ct, user) | contract_ctx(c)
+    ctx["missing_items"] = "\n".join(f"  • {onboarding.item_label(t)}" for t in missing)
+    return _new(db, "onboarding_followup", ctx, to,
+                dedupe=f"onboarding_followup:contract:{c.id}:{rnd}" if rnd is not None else None,
+                party_type=c.party_type, party_id=c.party_id, contract_id=c.id)
+
+
 def generate_reminders(db) -> int:
     """Create drafts for every reminder that is due. Safe to run any number of times."""
     today, start = logic.today(), since(db)
@@ -329,6 +345,15 @@ def generate_reminders(db) -> int:
                                                              ServiceDeliveryLog.date_performed >= today,
                                                              ServiceDeliveryLog.date_performed <= horizon)):
             if draft_delivery(db, d):
+                made += 1
+    if "onboarding_followup" in tpls:
+        from . import onboarding
+        every = days("onboarding_followup", 7)
+        for c, missing, rnd in onboarding.followups_due(db, every, start, today):
+            waiting = db.scalar(select(EmailMessage.id).where(
+                EmailMessage.contract_id == c.id, EmailMessage.template_key == "onboarding_followup",
+                EmailMessage.status.in_(("Draft", "Failed"))))
+            if not waiting and draft_onboarding_followup(db, c, missing, rnd):
                 made += 1
     db.commit()
     return made
@@ -453,10 +478,8 @@ def _after_send(db, m: EmailMessage) -> None:
         p = db.get(ConsultPlan, m.plan_id)
         if p and p.status == "Draft":
             p.status, p.plan_sent_date = "Sent", today
-            cl = logic.checklist_for(db, p.contract)
-            if cl:
-                logic._mark_steps(cl.tasks, ["Complete pre-consult plan and send training plan"], today)
-                logic.refresh_onboarding_status(cl)
+    from . import onboarding
+    onboarding.sync_contract_id(db, m.contract_id)
 
 
 def test_message(db, to: str) -> Optional[str]:
@@ -482,6 +505,8 @@ def test_message(db, to: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 def run_cycle() -> tuple[int, int]:
     with SessionLocal() as db:
+        from . import onboarding
+        onboarding.sync_all(db)
         if not logic.get_setting(db, "mail_since"):
             return 0, 0  # email hasn't been switched on yet
         made = generate_reminders(db)

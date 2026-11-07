@@ -29,7 +29,7 @@
 
 <div class="card">
   <h2 style="margin-top:0">Onboarding task templates</h2>
-  <p class="muted">When a contract leaves Draft, its checklist gets the general tasks plus the tasks of every template whose service is on the contract. A district that bought SEIS coaching only sees coaching tasks.</p>
+  <p class="muted">When a contract leaves Draft, its checklist gets the general tasks plus the tasks of every template whose service is on the contract. A district that bought SEIS coaching only sees coaching tasks. A task with a "ticks itself when" rule is marked Done automatically once the app sees that happen. Changing a rule here applies to new checklists and to open tasks on existing ones.</p>
   {% for t in templates_ %}
   <details id="t{{ t.id }}" style="border-top:1px solid var(--line);padding:.5rem 0">
     <summary><b>{{ t.title }}</b> <span class="muted">· {{ t.service_type.service_name if t.service_type else 'every contract' }} · {{ t.items|length }} task(s)</span></summary>
@@ -40,9 +40,12 @@
           {% for s in service_types %}<option value="{{ s.id }}" {{ 'selected' if t.service_type_id == s.id }}>{{ s.service_name }}</option>{% endfor %}</select></div>
         <div class="field"><label>Source document (SOP)</label><input class="wide" name="source_document" value="{{ t.source_document or '' }}"></div>
       </div>
-      <table><thead><tr><th>Stage</th><th>Task</th><th>Remove</th></tr></thead><tbody>
-        {% for it in t.items %}<tr><td><input name="i{{ it.id }}_stage" value="{{ it.stage or '' }}"></td><td><input class="wide" name="i{{ it.id }}_task" value="{{ it.task }}"></td><td><input type="checkbox" name="i{{ it.id }}_remove"></td></tr>{% endfor %}
-        <tr><td><input name="new_stage" placeholder="Stage"></td><td><input class="wide" name="new_task" placeholder="Add a task"></td><td></td></tr>
+      <table><thead><tr><th>Stage</th><th>Task</th><th>Ticks itself when</th><th>Remove</th></tr></thead><tbody>
+        {% for it in t.items %}<tr><td><input name="i{{ it.id }}_stage" value="{{ it.stage or '' }}"></td><td><input class="wide" name="i{{ it.id }}_task" value="{{ it.task }}"></td>
+          <td><select name="i{{ it.id }}_auto"><option value="">Ticked by hand</option>{% for k, label in AUTO_RULES.items() %}<option value="{{ k }}" {{ 'selected' if it.auto == k }}>{{ label|capitalize }}</option>{% endfor %}</select></td>
+          <td><input type="checkbox" name="i{{ it.id }}_remove"></td></tr>{% endfor %}
+        <tr><td><input name="new_stage" placeholder="Stage"></td><td><input class="wide" name="new_task" placeholder="Add a task"></td>
+          <td><select name="new_auto"><option value="">Ticked by hand</option>{% for k, label in AUTO_RULES.items() %}<option value="{{ k }}">{{ label|capitalize }}</option>{% endfor %}</select></td><td></td></tr>
       </tbody></table>
       <p><button class="btn small primary">Save template</button></p>
     </form>

@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import or_, select
 
-from . import auth, docs, export, importer, logic
+from . import auth, docs, export, importer, logic, onboarding
 from .config import APP_DIR, COMPANY, FOOTER_LINE, UPLOAD_DIR
 from .models import ROLES, AuditLog, User
 from .models import *  # noqa: F401,F403  (template globals need the vocabularies)
@@ -43,6 +43,8 @@ def _startup():
     with SessionLocal() as db:
         seed_reference_data(db)
         mail.seed_templates(db)
+        onboarding.backfill(db)
+        onboarding.sync_all(db)
     mail.start_scheduler()
 
 
@@ -126,7 +128,7 @@ def party_url(ptype, pid):
 
 templates.env.filters.update(money=money, fdate=fdate, num=num, pct=pct)
 templates.env.globals.update(
-    party_url=party_url, STEP_STATUSES=STEP_STATUSES, CONTRACT_STATUSES=CONTRACT_STATUSES,
+    party_url=party_url, STEP_STATUSES=STEP_STATUSES, AUTO_RULES=onboarding.RULES, CONTRACT_STATUSES=CONTRACT_STATUSES,
     BILLING_FREQUENCIES=BILLING_FREQUENCIES, INSTALLMENT_STATUSES=INSTALLMENT_STATUSES,
     QUOTE_STATUSES=QUOTE_STATUSES, LEAD_STATUSES=LEAD_STATUSES, STUDENT_TIERS=STUDENT_TIERS, TIER_HELP=TIER_HELP,
     INCOME_CATEGORIES=INCOME_CATEGORIES, PRICE_METHODS=PRICE_METHODS, DELIVERY_STATUSES=DELIVERY_STATUSES,
@@ -777,7 +779,8 @@ def contract_detail(request: Request, cid: int, tab: str = "overview", db=Depend
     billed = sum(i.amount for i in c.billing_schedule if i.status in ("Invoiced", "Paid"))
     scheduled = sum(i.amount for i in c.billing_schedule if i.status != "Cancelled")
     return render(request, "contract.html", db, c=c, tab=tab, util=logic.contract_utilization(c),
-                  checklist=logic.checklist_for(db, c), coaches=coach_rows, contacts=contacts, deliveries=deliveries,
+                  checklist=(cl_ := logic.checklist_for(db, c)), missing=onboarding.missing_items(cl_) if cl_ else [],
+                  coaches=coach_rows, contacts=contacts, deliveries=deliveries,
                   plans=plans, plan_hours={p.id: logic.plan_hours(p) for p in plans}, quote=quote,
                   amend_quotes=amend_quotes, billed=billed, scheduled=scheduled,
                   service_types=list(db.scalars(select(ServiceType).where(ServiceType.active)
@@ -893,6 +896,7 @@ async def service_coach(request: Request, sid: int, db=Depends(get_db)):
     ln.notes = fs(form, "notes")
     db.flush()
     msgs = logic.maybe_activate(db, ln.contract)
+    onboarding.sync(db, ln.contract)
     db.commit()
     return go(f"/contracts/{ln.contract_id}?tab=services", " ".join(["Saved."] + msgs))
 
@@ -988,6 +992,7 @@ def installment_invoice(request: Request, iid: int, db=Depends(get_db)):
 def onboarding_generate(cid: int, db=Depends(get_db)):
     c = get_or_404(db, TrainingContract, cid)
     n = logic.generate_onboarding(db, c)
+    onboarding.sync(db, c)
     db.commit()
     return go(f"/contracts/{cid}?tab=onboarding", f"{n} task(s) added from the templates." if n else
               "Checklist already has every task its services call for.")
@@ -1003,6 +1008,7 @@ async def onboarding_save(request: Request, cid: int, db=Depends(get_db)):
         if fs(form, "new_task"):
             cl.tasks.append(OnboardingTask(step=fs(form, "new_task"), stage="Added by hand", sort_order=len(cl.tasks)))
         logic.refresh_onboarding_status(cl)
+        onboarding.sync(db, c)
     db.commit()
     return go(f"/contracts/{cid}?tab=onboarding", "Checklist saved.")
 
@@ -1090,6 +1096,8 @@ async def delivery_save(request: Request, db=Depends(get_db)):
         if ln and ln.service_type.delivery_unit == "hour":
             lg.units = lg.duration or 0
     db.add(lg)
+    db.flush()
+    onboarding.sync_contract_id(db, lg.contract_id)
     db.commit()
     return go(form.get("back") or f"/contracts/{lg.contract_id}?tab=delivery", "Saved.")
 
@@ -1148,6 +1156,7 @@ async def plan_save(request: Request, pid: int, db=Depends(get_db)):
         s.session_no = i
     db.flush()
     h = logic.plan_hours(p)
+    onboarding.sync(db, p.contract)
     db.commit()
     warn = (f"Planned sessions ({h['booked']:g} hrs) are more than the {h['contracted']:g} contracted hours."
             if h["over"] else "")
@@ -1161,6 +1170,7 @@ async def plan_session_held(request: Request, pid: int, sid: int, db=Depends(get
     if not s.duration:
         return go(f"/plans/{pid}", err="Enter the session's duration first.")
     logic.mark_session_held(db, s, int(form["coach_id"]) if form.get("coach_id") else None, fd(form, "when"))
+    onboarding.sync_contract_id(db, s.plan.contract_id)
     db.commit()
     return go(f"/plans/{pid}", f"Session {s.session_no} logged as delivered ({s.duration:g} hrs).")
 
@@ -1169,10 +1179,7 @@ async def plan_session_held(request: Request, pid: int, sid: int, db=Depends(get
 def plan_sent(pid: int, db=Depends(get_db)):
     p = get_or_404(db, ConsultPlan, pid)
     p.status, p.plan_sent_date = "Sent", logic.today()
-    cl = logic.checklist_for(db, p.contract)
-    if cl:
-        logic._mark_steps(cl.tasks, ["Complete pre-consult plan and send training plan"], logic.today())
-        logic.refresh_onboarding_status(cl)
+    onboarding.sync(db, p.contract)
     db.commit()
     return go(f"/plans/{pid}", "Marked as sent to the client.")
 
@@ -1316,9 +1323,19 @@ async def setup_template(request: Request, tid: int, db=Depends(get_db)):
             t.items.remove(it)
         else:
             it.task, it.stage = fs(form, f"i{it.id}_task") or it.task, fs(form, f"i{it.id}_stage")
+            if form.get(f"i{it.id}_auto") is not None:
+                new = form.get(f"i{it.id}_auto") if form.get(f"i{it.id}_auto") in onboarding.RULES else ""
+                if new != (it.auto or ""):
+                    it.auto = new
+                    for task in db.scalars(select(OnboardingTask).where(OnboardingTask.template_item_id == it.id,
+                                                                        OnboardingTask.status.in_(onboarding.OPEN))):
+                        task.auto = new
     if fs(form, "new_task"):
         t.items.append(TaskTemplateItem(task=fs(form, "new_task"), stage=fs(form, "new_stage"),
-                                        sort_order=len(t.items)))
+                                        sort_order=len(t.items),
+                                        auto=form.get("new_auto") if form.get("new_auto") in onboarding.RULES else ""))
+    db.flush()
+    onboarding.sync_all(db)
     db.commit()
     return go(f"/setup#t{tid}", "Template saved.")
 

@@ -505,6 +505,7 @@ class TaskTemplateItem(Base):
     stage: Mapped[Optional[str]] = mapped_column(String(80))
     task: Mapped[str] = mapped_column(String(300))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    auto: Mapped[Optional[str]] = mapped_column(String(40))  # onboarding.RULES key; "" = ticked by hand
     template: Mapped[TaskTemplate] = relationship(back_populates="items")
 
 
@@ -527,6 +528,7 @@ class OnboardingTask(StepMixin, Base):
     stage: Mapped[Optional[str]] = mapped_column(String(80))
     template_item_id: Mapped[Optional[int]] = mapped_column(Integer)
     service_type_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lcs_service_type.id"))
+    auto: Mapped[Optional[str]] = mapped_column(String(40))  # copied from the template item
     checklist: Mapped[OnboardingChecklist] = relationship(back_populates="tasks")
 
 

@@ -394,7 +394,8 @@ def generate_onboarding(db, c: TrainingContract) -> int:
             if item.id in have:
                 continue
             cl.tasks.append(OnboardingTask(step=item.task, stage=item.stage, template_item_id=item.id,
-                                           service_type_id=tpl.service_type_id, sort_order=order))
+                                           service_type_id=tpl.service_type_id, sort_order=order,
+                                           auto=item.auto or ""))
             order += 1
             added += 1
     refresh_onboarding_status(cl)
@@ -422,6 +423,8 @@ def on_status_change(db, c: TrainingContract, old: str) -> list[str]:
         if mail.welcome_on_signing(db, c):
             msgs.append("A welcome email is waiting in the outbox.")
     msgs += maybe_activate(db, c)
+    from . import onboarding
+    onboarding.sync(db, c)
     return msgs
 
 
@@ -430,9 +433,8 @@ def maybe_activate(db, c: TrainingContract) -> list[str]:
     cur = c.current_services
     if c.status == "Pending Assignment" and cur and all(s.assigned_coach_id for s in cur):
         c.status = "Active"
-        cl = checklist_for(db, c)
-        if cl:
-            _mark_steps(cl.tasks, ["Primary coach assigned"], today())
+        from . import onboarding
+        onboarding.sync(db, c)
         return ["Every service line has a coach, so the contract is now Active."]
     return []
 

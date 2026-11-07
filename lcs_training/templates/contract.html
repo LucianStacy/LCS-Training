@@ -7,7 +7,7 @@
       · <a href="{{ party_url(c.party_type, c.party_id) }}">client page</a>{% if quote %} · from quote <a href="/quotes/{{ quote.id }}">{{ quote.quote_number }}</a>{% endif %}</p></div>
   <div class="row">
   {% if can('email') %}<form class="row" method="post" action="/emails/new"><input type="hidden" name="kind" value="contract"><input type="hidden" name="id" value="{{ c.id }}">
-    <select name="template"><option value="general">General message</option><option value="welcome">Welcome</option><option value="renewal">Renewal reminder</option></select><button class="btn">Email client</button></form>{% endif %}
+    <select name="template"><option value="general">General message</option><option value="welcome">Welcome</option><option value="renewal">Renewal reminder</option><option value="onboarding_followup">Missing onboarding items</option></select><button class="btn">Email client</button></form>{% endif %}
   {% if can('edit_contracts') %}<form class="row" method="post" action="/contracts/{{ c.id }}/status">
     <label style="margin:0">Status</label><select name="status">{{ m.options(CONTRACT_STATUSES, c.status) }}</select><button class="btn">Set</button>
   </form>{% endif %}
@@ -130,10 +130,15 @@
   <form method="post" action="/contracts/{{ c.id }}/onboarding">
     <div class="row"><h2 style="margin:0">Onboarding checklist</h2>{{ m.progress(checklist.tasks) }} {{ m.badge(checklist.status) }}<span class="spacer"></span>
       <small class="muted">Generated {{ checklist.generated_date|fdate }} from the templates that match this contract's services.</small></div>
-    {{ m.steps_table(checklist.tasks, 'task', True) }}
+    <p class="muted" style="margin:.4rem 0 0">Tasks marked <span class="badge auto">auto</span> tick themselves when the app sees the work done. Hover the badge to see when.</p>
+    {{ m.steps_table(checklist.tasks, 'task', True, AUTO_RULES) }}
     <p class="row"><input name="new_task" placeholder="Add a one-off task" style="min-width:20rem"><button class="btn primary">Save checklist</button></p>
   </form>
-  <form method="post" action="/contracts/{{ c.id }}/onboarding/generate"><button class="btn small">Add tasks for newly added services</button></form>
+  <div class="row">
+    <form method="post" action="/contracts/{{ c.id }}/onboarding/generate"><button class="btn small">Add tasks for newly added services</button></form>
+    {% if can('email') and missing %}<form method="post" action="/emails/new"><input type="hidden" name="kind" value="contract"><input type="hidden" name="id" value="{{ c.id }}"><input type="hidden" name="template" value="onboarding_followup">
+      <button class="btn small" title="{% for t in missing %}{{ t.step }}&#10;{% endfor %}">Email the client what's still missing ({{ missing|length }})</button></form>{% endif %}
+  </div>
   {% else %}
   <p>The onboarding checklist is generated when the contract moves out of Draft (e.g. when the fully executed contract is received). It only contains tasks for the services this contract includes.</p>
   <form method="post" action="/contracts/{{ c.id }}/onboarding/generate"><button class="btn primary">Generate checklist now</button></form>

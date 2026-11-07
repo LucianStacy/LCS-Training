@@ -19,7 +19,7 @@
   <div class="fields" style="margin-top:.6rem">
     <div class="field"><label>Name</label><input class="wide" name="name" value="{{ t.name }}"></div>
     {% if d and d.days is not none %}
-    <div class="field"><label>{{ 'Days after the due date' if t.key == 'invoice_overdue' else 'Days before' }}</label><input class="short" name="days" value="{{ t.days if t.days is not none else '' }}"></div>
+    <div class="field"><label>{{ 'Days after the due date' if t.key == 'invoice_overdue' else ('Every how many days, while items are missing' if t.key == 'onboarding_followup' else 'Days before') }}</label><input class="short" name="days" value="{{ t.days if t.days is not none else '' }}"></div>
     <div class="field"><label>&nbsp;</label>
       <label style="color:inherit"><input type="checkbox" name="auto_draft" {{ 'checked' if t.auto_draft }}> Create drafts automatically</label>
       <label style="color:inherit"><input type="checkbox" name="auto_send" {{ 'checked' if t.auto_send }} onchange="if(this.checked && !confirm('Send these without anyone reviewing them first?')) this.checked = false"> …and send them without review</label></div>

@@ -83,6 +83,26 @@ Without Docker, run `python -m lcs_training reset-password you@example.org`. To 
 
 Contracts filed under "Other" can be split into categories right on the page. Anything that's fine as it is can be marked **Checked, it's fine**. It stays hidden until the data behind it changes, and **Show checked items** brings it back. Coaches see the delivery items but no dollar amounts.
 
+## Onboarding automation
+
+Checklist tasks marked **auto** tick themselves when the app sees the work done, with a note saying why:
+
+| Task | Ticks when |
+|---|---|
+| Welcome email sent | the welcome email is sent from the outbox |
+| Primary coach assigned | every service line has a coach |
+| Add trainings / audits to the schedule | a session for that service is on the schedule (cancelled ones don't count) |
+| Book pre-consult meeting | the consult plan has a meeting date |
+| Complete pre-consult plan and send training plan | the consult plan is sent |
+| Book consult hours | every session on the consult plan has a date |
+| Reminder sent out | a reminder email for that service is sent |
+| Follow up on missing participant lists / SEIS logins | everything in "Received …" is marked done |
+
+- Ticking only moves a task forward. Anything someone set by hand (including N/A) is left alone.
+- Change or switch off a rule under **Setup → Onboarding task templates** ("Ticks itself when"). Open tasks on existing checklists follow the change.
+- The onboarding tab has **Email the client what's still missing**, which drafts the follow-up email by hand.
+- The app re-checks every hour and whenever a session, plan, coach or email changes.
+
 ## Customer email
 
 **Email** is the outbox. The app drafts reminders automatically, and nobody's customer gets anything until someone presses **Send**:
@@ -94,6 +114,7 @@ Contracts filed under "Other" can be split into categories right on the page. An
 | Renewal reminder | 60 days before a contract ends |
 | Training / audit reminder | 3 days before a scheduled session |
 | Welcome | when the fully executed contract is received (contract leaves Draft) |
+| Onboarding follow-up | every 7 days while a checklist still has "Received …" items open (participant lists, SEIS/CALPADS logins). It lists what's missing |
 | Quote, consult plan, general | by hand, from the quote, plan, contract or client page |
 
 - An Admin sets up the mail server under **Email → Email settings**. Microsoft 365 and Google Workspace need an app password. To keep the password out of the database, set `LCS_SMTP_PASSWORD` in `docker-compose.yml`.

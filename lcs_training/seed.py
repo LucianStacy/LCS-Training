@@ -139,7 +139,9 @@ def seed_reference_data(db) -> None:
         for i, (title, svc, items) in enumerate(TEMPLATES):
             t = TaskTemplate(title=title, service_type=st.get(svc) if svc else None, sort_order=i,
                              source_document="Client Spreadsheet - Client Onboarding tab")
-            t.items = [TaskTemplateItem(stage=s, task=task, sort_order=j) for j, (s, task) in enumerate(items)]
+            from .onboarding import DEFAULT_AUTO
+            t.items = [TaskTemplateItem(stage=s, task=task, sort_order=j, auto=DEFAULT_AUTO.get(task, ""))
+                       for j, (s, task) in enumerate(items)]
             db.add(t)
     if not db.get(Setting, "user_name"):
         db.add(Setting(key="user_name", value=""))

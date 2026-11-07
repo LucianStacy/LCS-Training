@@ -96,6 +96,7 @@ form.inline { display: inline; }
 .badge.s-Pending-Assignment, .badge.s-Sent, .badge.s-Quoted, .badge.s-Scheduled, .badge.s-In-Progress, .badge.s-Planned { background: #eaf4fb; color: var(--deep-blue); border-color: #cfe5f5; }
 .badge.s-Active, .badge.s-Accepted, .badge.s-Won, .badge.s-Completed, .badge.s-Done, .badge.s-Paid, .badge.s-Complete { background: var(--ok-bg); color: #1f7a2e; border-color: #cbe9d0; }
 .badge.s-Renewal-Pending, .badge.s-Invoiced { background: var(--purple-tint); color: var(--purple); border-color: #dccbe9; }
+.badge.auto { background: #eaf4fb; color: var(--deep-blue); border-color: #cfe5f5; cursor: help; font-size: .62rem; }
 .badge.s-Expired, .badge.s-Declined, .badge.s-Lost, .badge.s-Cancelled { background: #f6f6f6; color: var(--gray); }
 .badge.risk { background: var(--bad-bg); color: #a3104c; border-color: #f6c4d7; }
 .badge.review { background: var(--warn-bg); color: var(--warn); border-color: #f1dcaa; }
